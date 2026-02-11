@@ -1,0 +1,95 @@
+#!/bin/sh
+##Script function and purpose: Main entry point for the btbox utility. Handles CLI argument parsing and dispatching to the VMM runner.
+#
+# btbox - Bluetooth Audio Sandbox for FreeBSD
+#
+
+set -e
+
+# Load UI Utilities
+[ -f "src/ui_utils.sh" ] && . "src/ui_utils.sh"
+
+# Defaults
+CONF_FILE="/usr/local/etc/btbox.conf"
+[ -f "conf/btbox.conf.sample" ] && CONF_FILE="conf/btbox.conf.sample" # Dev mode override
+[ -f ".dev_mode" ] && CONF_FILE="conf/btbox.conf.sample"
+
+##Condition purpose: Load configuration file if it exists.
+if [ -f "$CONF_FILE" ]; then
+    ##Step purpose: Security check - Verify config file ownership and permissions.
+    # Must be owned by root and not writable by group/others.
+    if [ "$(ls -l "$CONF_FILE" | awk '{print $3}')" != "root" ]; then
+         msg_err "Configuration file $CONF_FILE must be owned by root."
+         exit 1
+    fi
+    # Check for write permissions for group/others (stat format %A returns like -rw-r--r--)
+    PERMS=$(stat -f "%Sp" "$CONF_FILE")
+    if echo "$PERMS" | grep -q "^....w"; then
+         msg_err "Configuration file $CONF_FILE is group writable. Secure it (chmod 644 or 600)."
+         exit 1
+    fi
+    if echo "$PERMS" | grep -q "^.......w"; then
+         msg_err "Configuration file $CONF_FILE is world writable. Secure it (chmod 644 or 600)."
+         exit 1
+    fi
+
+    . "$CONF_FILE"
+else
+    ##Error purpose: Fail if config is missing.
+    msg_err "Configuration file not found at $CONF_FILE"
+    exit 1
+fi
+
+##Function purpose: Display usage information.
+usage() {
+    show_banner
+    printf "Usage: btbox {start|stop|status|console}\n"
+    exit 1
+}
+
+##Function purpose: Verify script is running as root.
+check_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        ##Error purpose: Fail if not root.
+        msg_err "btbox must be run as root."
+        exit 1
+    fi
+}
+
+##Action purpose: Parse command line arguments and execute sub-commands.
+case "$1" in
+    start)
+        check_root
+        show_banner
+        msg_info "Starting btbox..."
+        # Call the VMM runner
+        sh src/vmm/bhyve_runner.sh start
+        ;;
+    stop)
+        check_root
+        msg_info "Stopping btbox..."
+        sh src/vmm/bhyve_runner.sh stop
+        ;;
+    status)
+        ##Condition purpose: Check if VM device exists.
+        if [ -e "/dev/vmm/btbox" ]; then
+            msg_status "btbox is running."
+        else
+            msg_status "btbox is not running."
+        fi
+        ;;
+    console)
+        check_root
+        ##Condition purpose: Check if console device exists.
+        if [ -e "/dev/nmdm_btbox_B" ]; then
+            msg_info "Connecting to console... (Press ~ then . to exit)"
+            cu -l /dev/nmdm_btbox_B
+        else
+            ##Error purpose: Fail if console not found.
+            msg_err "Console not available."
+        fi
+        ;;
+    *)
+        usage
+        ;;
+esac

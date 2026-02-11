@@ -1,0 +1,18 @@
+# btbox configuration file
+
+# The PCI slot of the USB controller to pass through to the guest.
+# Use `pciconf -lv` to find your USB controller's ID (e.g., 0:20:0).
+# format: bus/slot/function
+PASSTHRU_PCI="0/20/0"
+
+# Amount of RAM to allocate to the guest VM (MB).
+VM_RAM="128"
+
+# Number of vCPUs.
+VM_CPUS="1"
+
+# Network configuration for the bridge.
+# The host side IP.
+HOST_IP="10.0.0.1"
+# The guest side IP.
+GUEST_IP="10.0.0.2"

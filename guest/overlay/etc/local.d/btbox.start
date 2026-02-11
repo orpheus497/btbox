@@ -1,0 +1,38 @@
+#!/bin/sh
+##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio services.
+#
+# btbox startup script
+# Located at /etc/local.d/btbox.start inside the guest
+
+echo ">> btbox: Initializing..."
+
+##Step purpose: Configure Alpine repositories.
+cat > /etc/apk/repositories <<EOF
+https://dl-cdn.alpinelinux.org/alpine/v3.21/main
+https://dl-cdn.alpinelinux.org/alpine/v3.21/community
+EOF
+
+##Step purpose: Update and Install packages.
+# In a production version, we would mount a persistent disk and cache this.
+echo ">> btbox: Installing packages..."
+apk update
+apk add bluez bluez-deprecated pipewire pipewire-pulse wireplumber
+
+##Step purpose: Start System Services.
+echo ">> btbox: Starting Services..."
+# D-Bus is required for BlueZ
+rc-service dbus start
+rc-service bluetooth start
+
+##Step purpose: Configure and Start Audio Bridge.
+# We need to run PipeWire. Usually it runs as user, but we can run as root for this appliance.
+mkdir -p /run/pipewire
+export PIPEWIRE_RUNTIME_DIR=/run/pipewire
+
+# Start PipeWire in background
+pipewire &
+pipewire-pulse &
+wireplumber &
+
+##Step purpose: Signal readiness.
+echo ">> btbox: Ready. Waiting for connections."
