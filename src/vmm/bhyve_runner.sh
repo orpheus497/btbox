@@ -4,16 +4,13 @@
 # btbox - Bhyve Runner
 #
 
-# Load UI Utilities
-[ -f "src/ui_utils.sh" ] && . "src/ui_utils.sh"
+# Load Common Library (Handle path difference if run from root or src)
+[ -f "src/common.sh" ] && . "src/common.sh"
+[ -f "../src/common.sh" ] && . "../src/common.sh"
 
-# Load Config (Same logic as main script, redundant but safe)
-CONF_FILE="/usr/local/etc/btbox.conf"
-[ -f "conf/btbox.conf.sample" ] && CONF_FILE="conf/btbox.conf.sample"
-##Condition purpose: Load config if present.
-if [ -f "$CONF_FILE" ]; then . "$CONF_FILE"; fi
+##Action purpose: Load configuration.
+load_config
 
-VM_NAME="btbox"
 GUEST_DIR="guest/output"
 
 # Defaults if not set
@@ -21,8 +18,19 @@ VM_RAM=${VM_RAM:-128M}
 VM_CPUS=${VM_CPUS:-1}
 PASSTHRU_PCI=${PASSTHRU_PCI:-""}
 
+##Function purpose: Clean up resources on exit.
+cleanup() {
+    if [ -n "$TAP_DEV" ]; then
+        msg_info "Cleaning up $TAP_DEV..."
+        ifconfig "$TAP_DEV" destroy
+    fi
+}
+
 ##Function purpose: Start the VM.
 cmd_start() {
+    # Set trap for cleanup
+    trap cleanup EXIT INT TERM
+
     ##Step purpose: Load required kernel modules.
     kldload vmm >/dev/null 2>&1 || true
     kldload nmdm >/dev/null 2>&1 || true
@@ -65,12 +73,17 @@ EOF
         -s 1:0,lpc \
         -s 2:0,virtio-net,"$TAP_DEV" \
         -s 3:0,virtio-blk,"$GUEST_DIR/seed.img" \
-        -l com1,/dev/nmdm_btbox_A \
+        -l com1,"$NMDM_A" \
         $PASSTHRU_ARG \
         "$VM_NAME" &
         
     PID=$!
     msg_ok "VM Started (PID $PID). Console available via 'btbox console'."
+    
+    # Wait for the VM process so trap works (if running in foreground)
+    # Since we run in background for 'start' command, we detach.
+    # We explicitly untrap if we successfully detach.
+    trap - EXIT
 }
 
 ##Function purpose: Stop and destroy the VM.
@@ -79,7 +92,10 @@ cmd_stop() {
     bhyvectl --destroy --vm="$VM_NAME"
     msg_ok "VM Stopped."
     # Cleanup TAP?
-    # ifconfig tapX destroy... need to track it.
+    # Usually handled by the persistent process or manual cleanup if detached.
+    # This naive implementation assumes start created a persistent tap.
+    # For now, we don't know WHICH tap to destroy unless we tracked it.
+    # Refactoring TODO: Use pidfile or state file to track resources.
 }
 
 ##Action purpose: Dispatch command.

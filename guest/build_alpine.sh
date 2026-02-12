@@ -6,10 +6,15 @@
 
 set -e
 
-ALPINE_VERSION="3.21.2"
-ALPINE_MAJOR="v3.21"
-MIRROR="https://dl-cdn.alpinelinux.org/alpine"
-ARCH="x86_64"
+# Load Builder Config
+[ -f "guest/builder.conf" ] && . "guest/builder.conf"
+
+# Defaults if conf missing
+ALPINE_VERSION=${ALPINE_VERSION:-"3.21.2"}
+ALPINE_MAJOR=${ALPINE_MAJOR:-"v3.21"}
+MIRROR=${MIRROR:-"https://dl-cdn.alpinelinux.org/alpine"}
+ARCH=${ARCH:-"x86_64"}
+
 ISO_NAME="alpine-virt-${ALPINE_VERSION}-${ARCH}.iso"
 ISO_URL="${MIRROR}/${ALPINE_MAJOR}/releases/${ARCH}/${ISO_NAME}"
 

@@ -6,39 +6,11 @@
 
 set -e
 
-# Load UI Utilities
-[ -f "src/ui_utils.sh" ] && . "src/ui_utils.sh"
+# Load Common Library
+[ -f "src/common.sh" ] && . "src/common.sh"
 
-# Defaults
-CONF_FILE="/usr/local/etc/btbox.conf"
-[ -f "conf/btbox.conf.sample" ] && CONF_FILE="conf/btbox.conf.sample" # Dev mode override
-[ -f ".dev_mode" ] && CONF_FILE="conf/btbox.conf.sample"
-
-##Condition purpose: Load configuration file if it exists.
-if [ -f "$CONF_FILE" ]; then
-    ##Step purpose: Security check - Verify config file ownership and permissions.
-    # Must be owned by root and not writable by group/others.
-    if [ "$(ls -l "$CONF_FILE" | awk '{print $3}')" != "root" ]; then
-         msg_err "Configuration file $CONF_FILE must be owned by root."
-         exit 1
-    fi
-    # Check for write permissions for group/others (stat format %A returns like -rw-r--r--)
-    PERMS=$(stat -f "%Sp" "$CONF_FILE")
-    if echo "$PERMS" | grep -q "^....w"; then
-         msg_err "Configuration file $CONF_FILE is group writable. Secure it (chmod 644 or 600)."
-         exit 1
-    fi
-    if echo "$PERMS" | grep -q "^.......w"; then
-         msg_err "Configuration file $CONF_FILE is world writable. Secure it (chmod 644 or 600)."
-         exit 1
-    fi
-
-    . "$CONF_FILE"
-else
-    ##Error purpose: Fail if config is missing.
-    msg_err "Configuration file not found at $CONF_FILE"
-    exit 1
-fi
+##Action purpose: Load configuration using common logic.
+load_config
 
 ##Function purpose: Display usage information.
 usage() {
@@ -72,7 +44,7 @@ case "$1" in
         ;;
     status)
         ##Condition purpose: Check if VM device exists.
-        if [ -e "/dev/vmm/btbox" ]; then
+        if [ -e "/dev/vmm/$VM_NAME" ]; then
             msg_status "btbox is running."
         else
             msg_status "btbox is not running."
@@ -81,9 +53,9 @@ case "$1" in
     console)
         check_root
         ##Condition purpose: Check if console device exists.
-        if [ -e "/dev/nmdm_btbox_B" ]; then
+        if [ -e "$NMDM_B" ]; then
             msg_info "Connecting to console... (Press ~ then . to exit)"
-            cu -l /dev/nmdm_btbox_B
+            cu -l "$NMDM_B"
         else
             ##Error purpose: Fail if console not found.
             msg_err "Console not available."

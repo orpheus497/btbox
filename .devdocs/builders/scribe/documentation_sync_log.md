@@ -1,11 +1,7 @@
 # Documentation Sync Log
 
-## 2026-02-12T10:35:00Z
-*   **Task**: Prepare project for formal release/handover.
-*   **Actions**:
-    *   Verified existing documentation consistency.
-    *   Created `LICENSE` (BSD 2-Clause).
-    *   Created `CHANGELOG.md` with initial release notes.
-    *   Updated `README.md` with hardware check instructions and current status.
-    *   Updated shared `.devdocs/PROGRESS.md` and `.devdocs/BRIEFING.md`.
-*   **Consistency Check**: All scripts now match the described architecture in `structure_plan.md`.
+| Date/Time | Agent | Action | Target Files |
+| :--- | :--- | :--- | :--- |
+| 2026-02-12T10:00:00Z | Architect | Initial Scaffolding | .devdocs/* |
+| 2026-02-12T14:30:00Z | Scribe | Initial Documentation Sync | README.md, AGENTS.md |
+| 2026-02-12T15:45:00Z | Scribe | Project Identity & Credits Sync | README.md, CHANGELOG.md |

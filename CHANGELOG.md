@@ -5,9 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0-alpha] - 2026-02-12
+## [0.1.0-alpha] - 2026-02-12 (UNRELEASED)
 
 ### Added
+- **Project Identity**: Formally identified **orpheus497** as the project creator and primary maintainer.
+- **Detailed Documentation**: Expanded `README.md` with technical purpose, inspiration credits (`wifibox`), and dependency acknowledgments.
 - **Core Logic**: Initial Bhyve wrapper implementation (`src/btbox`, `src/vmm/bhyve_runner.sh`).
 - **Guest OS**: Alpine Linux builder script (`guest/build_alpine.sh`) with configuration overlay (apkovl) support.
 - **Hardware Check**: Virtualization and IOMMU detection utility (`src/check_hw.sh`).
