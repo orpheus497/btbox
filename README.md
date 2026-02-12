@@ -2,7 +2,7 @@
 
 **btbox** is a specialized virtualization wrapper designed to bring modern, high-fidelity Bluetooth Audio support to FreeBSD. By leveraging a lightweight Alpine Linux guest running under the Bhyve hypervisor, `btbox` bridges the gap between FreeBSD's stability and Linux's advanced Bluetooth hardware support and codec ecosystem.
 
-**Creator:** orpheus497 (@cyronetics)  
+**Creator:** orpheus497
 **Status:** Version 0.1.0-alpha (INTERNAL DEVELOPMENT / UNRELEASED)
 
 ---
