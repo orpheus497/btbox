@@ -27,7 +27,20 @@ load_config
 ##Function purpose: Display usage information.
 usage() {
     show_banner
-    printf "Usage: btbox {start|stop|status|console}\n"
+    printf "Usage: btbox <command> [args]\n\n"
+    printf "VM Management:\n"
+    printf "  start                Start the btbox VM\n"
+    printf "  stop                 Stop the btbox VM\n"
+    printf "  status               Show VM status\n"
+    printf "  console              Attach to VM console\n\n"
+    printf "Bluetooth Device Management:\n"
+    printf "  scan                 Scan for nearby Bluetooth devices\n"
+    printf "  devices              List paired/connected devices\n"
+    printf "  pair <MAC>           Pair with a Bluetooth device\n"
+    printf "  trust <MAC>          Trust a paired device\n"
+    printf "  connect <MAC>        Connect to a paired device\n"
+    printf "  disconnect <MAC>     Disconnect a device\n"
+    printf "  remove <MAC>         Remove a paired device\n"
     exit 1
 }
 
@@ -38,6 +51,21 @@ check_root() {
         msg_err "btbox must be run as root."
         exit 1
     fi
+}
+
+##Function purpose: Check if the btbox VM is running.
+check_vm_running() {
+    if [ ! -e "/dev/vmm/$VM_NAME" ]; then
+        msg_err "btbox VM is not running. Start it first with: btbox start"
+        exit 1
+    fi
+}
+
+##Function purpose: Execute a command inside the guest VM over SSH.
+guest_exec() {
+    GUEST_SSH_IP="${GUEST_IP:-10.0.0.2}"
+    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
+        "root@${GUEST_SSH_IP}" "$1"
 }
 
 ##Action purpose: Parse command line arguments and execute sub-commands.
@@ -72,6 +100,68 @@ case "$1" in
             ##Error purpose: Fail if console not found.
             msg_err "Console not available."
         fi
+        ;;
+    scan)
+        check_root
+        check_vm_running
+        msg_info "Scanning for Bluetooth devices..."
+        guest_exec "bluetoothctl --timeout 10 scan on && sleep 10 && bluetoothctl devices"
+        ;;
+    pair)
+        check_root
+        check_vm_running
+        if [ -z "$2" ]; then
+            msg_err "Usage: btbox pair <MAC_ADDRESS>"
+            exit 1
+        fi
+        msg_info "Pairing with $2..."
+        guest_exec "bluetoothctl pair $2"
+        ;;
+    connect)
+        check_root
+        check_vm_running
+        if [ -z "$2" ]; then
+            msg_err "Usage: btbox connect <MAC_ADDRESS>"
+            exit 1
+        fi
+        msg_info "Connecting to $2..."
+        guest_exec "bluetoothctl connect $2"
+        ;;
+    disconnect)
+        check_root
+        check_vm_running
+        if [ -z "$2" ]; then
+            msg_err "Usage: btbox disconnect <MAC_ADDRESS>"
+            exit 1
+        fi
+        msg_info "Disconnecting $2..."
+        guest_exec "bluetoothctl disconnect $2"
+        ;;
+    devices)
+        check_root
+        check_vm_running
+        msg_info "Paired/Connected Bluetooth devices:"
+        guest_exec "bluetoothctl devices"
+        ;;
+    trust)
+        check_root
+        check_vm_running
+        if [ -z "$2" ]; then
+            msg_err "Usage: btbox trust <MAC_ADDRESS>"
+            exit 1
+        fi
+        msg_info "Trusting $2..."
+        guest_exec "bluetoothctl trust $2"
+        ;;
+    remove)
+        check_root
+        check_vm_running
+        if [ -z "$2" ]; then
+            msg_err "Usage: btbox remove <MAC_ADDRESS>"
+            exit 1
+        fi
+        msg_info "Removing $2..."
+        guest_exec "bluetoothctl remove $2"
         ;;
     *)
         usage

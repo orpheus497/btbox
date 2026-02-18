@@ -1,8 +1,9 @@
 #!/bin/sh
-##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio services.
+##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio + BT management services.
 #
 # btbox startup script
 # Located at /etc/local.d/btbox.start inside the guest
+# Replicates wifibox architecture but for Bluetooth audio, microphone, and device management.
 
 echo ">> btbox: Initializing..."
 
@@ -16,7 +17,20 @@ EOF
 # In a production version, we would mount a persistent disk and cache this.
 echo ">> btbox: Installing packages..."
 apk update
-apk add bluez bluez-deprecated pipewire pipewire-pulse wireplumber
+apk add \
+    bluez bluez-deprecated bluez-btmgmt \
+    pipewire pipewire-pulse pipewire-spa-bluez \
+    wireplumber \
+    openssh-server \
+    dbus
+
+##Step purpose: Configure SSH for host-to-guest command execution.
+echo ">> btbox: Configuring SSH access..."
+ssh-keygen -A
+mkdir -p /root/.ssh
+# Accept connections from the host (key-based auth will be configured by the host)
+echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+rc-service sshd start
 
 ##Step purpose: Start System Services.
 echo ">> btbox: Starting Services..."
@@ -24,15 +38,40 @@ echo ">> btbox: Starting Services..."
 rc-service dbus start
 rc-service bluetooth start
 
+##Step purpose: Power on the Bluetooth adapter.
+echo ">> btbox: Powering on Bluetooth adapter..."
+sleep 2
+bluetoothctl power on
+bluetoothctl discoverable on
+bluetoothctl pairable on
+# Register a default agent for automatic pairing
+bluetoothctl agent on
+bluetoothctl default-agent
+
 ##Step purpose: Configure and Start Audio Bridge.
-# We need to run PipeWire. Usually it runs as user, but we can run as root for this appliance.
+# PipeWire runs as root in this appliance VM
 mkdir -p /run/pipewire
 export PIPEWIRE_RUNTIME_DIR=/run/pipewire
+export XDG_RUNTIME_DIR=/run/pipewire
 
-# Start PipeWire in background
+# Start PipeWire stack in background
+# Order: pipewire -> wireplumber -> pipewire-pulse
+echo ">> btbox: Starting PipeWire audio bridge..."
 pipewire &
-pipewire-pulse &
+sleep 1
 wireplumber &
+sleep 1
+pipewire-pulse &
+
+##Step purpose: Configure network interface for host communication.
+echo ">> btbox: Configuring network..."
+# The TAP interface appears as eth0 in the guest
+# Configure with the guest IP from btbox.conf defaults
+ip addr add 10.0.0.2/24 dev eth0
+ip link set eth0 up
 
 ##Step purpose: Signal readiness.
-echo ">> btbox: Ready. Waiting for connections."
+echo ">> btbox: Ready."
+echo ">> btbox: Bluetooth audio bridge active."
+echo ">> btbox: Host can connect to PulseAudio at tcp:10.0.0.2:4713"
+echo ">> btbox: Use 'btbox scan/pair/connect' on the host to manage devices."

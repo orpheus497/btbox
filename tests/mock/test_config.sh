@@ -105,6 +105,11 @@ test_syntax_build_alpine() {
     assert_zero_exit "build_alpine.sh has valid syntax" "$?"
 }
 
+test_syntax_guest_start() {
+    sh -n "${PROJECT_ROOT}/guest/overlay/etc/local.d/btbox.start" 2>&1
+    assert_zero_exit "btbox.start has valid syntax" "$?"
+}
+
 # --- Test: UI functions load correctly ---
 test_ui_functions() {
     output=$(. "${PROJECT_ROOT}/src/ui_utils.sh" && msg_info "test message" 2>&1)
@@ -139,6 +144,7 @@ test_syntax_ui_utils
 test_syntax_check_hw
 test_syntax_bhyve_runner
 test_syntax_build_alpine
+test_syntax_guest_start
 test_ui_functions
 test_config_sample_variables
 
