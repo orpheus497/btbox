@@ -40,8 +40,17 @@ load_config() {
 
     if [ -f "$CONF_FILE" ]; then
         # Security Check: verify file is owned by root
-        # shellcheck disable=SC2012
-        OWNER=$(find "$CONF_FILE" -maxdepth 0 -printf '%u' 2>/dev/null || ls -l "$CONF_FILE" | awk '{print $3}')
+        if stat -f "%Su" "$CONF_FILE" >/dev/null 2>&1; then
+            # FreeBSD stat
+            OWNER=$(stat -f "%Su" "$CONF_FILE")
+        elif stat -c "%U" "$CONF_FILE" >/dev/null 2>&1; then
+            # Linux stat
+            OWNER=$(stat -c "%U" "$CONF_FILE")
+        else
+            # Fallback
+            # shellcheck disable=SC2012
+            OWNER=$(ls -l "$CONF_FILE" | awk '{print $3}')
+        fi
         if [ "$OWNER" != "root" ]; then
              if command -v msg_err >/dev/null; then
                 msg_err "Configuration file $CONF_FILE must be owned by root."

@@ -73,9 +73,7 @@ test_config_missing() {
 
 # --- Test: Usage output ---
 test_usage_output() {
-    output=$(BTBOX_CONF="/nonexistent/path/btbox.conf" sh "${PROJECT_ROOT}/src/btbox" 2>&1) || true
-    # Without a valid config, it will fail before usage, but let's test with a valid config
-    # For now, just ensure the script is parseable by sh
+    # Verify the script is parseable by sh
     sh -n "${PROJECT_ROOT}/src/btbox" 2>&1
     rc=$?
     assert_zero_exit "Main script has valid syntax" "$rc"
