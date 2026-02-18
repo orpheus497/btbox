@@ -17,15 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Install dependencies
-        run: sudo apt-get install -y ksh
-        
-      - name: Download shunit2
-        run: curl -L "https://github.com/kward/shunit2/archive/refs/tags/v2.1.8.tar.gz" | tar zx
-        
+
       - name: Run Tests
-        run: |
-          export SHUNIT2_PATH=$PWD/shunit2-2.1.8/shunit2
-          # We need to adapt the test script to source shunit2
-          # For now, just linting is the primary CI
+        run: sh tests/mock/test_config.sh

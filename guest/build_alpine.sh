@@ -6,8 +6,13 @@
 
 set -e
 
+# Resolve the directory where this script lives (guest/)
+GUEST_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Load Builder Config
-[ -f "guest/builder.conf" ] && . "guest/builder.conf"
+if [ -f "${GUEST_SCRIPT_DIR}/builder.conf" ]; then
+    . "${GUEST_SCRIPT_DIR}/builder.conf"
+fi
 
 # Defaults if conf missing
 ALPINE_VERSION=${ALPINE_VERSION:-"3.21.2"}
@@ -18,9 +23,9 @@ ARCH=${ARCH:-"x86_64"}
 ISO_NAME="alpine-virt-${ALPINE_VERSION}-${ARCH}.iso"
 ISO_URL="${MIRROR}/${ALPINE_MAJOR}/releases/${ARCH}/${ISO_NAME}"
 
-WORK_DIR="guest/build"
-OUTPUT_DIR="guest/output"
-OVERLAY_DIR="guest/overlay"
+WORK_DIR="${GUEST_SCRIPT_DIR}/build"
+OUTPUT_DIR="${GUEST_SCRIPT_DIR}/output"
+OVERLAY_DIR="${GUEST_SCRIPT_DIR}/overlay"
 
 mkdir -p "${WORK_DIR}" "${OUTPUT_DIR}"
 

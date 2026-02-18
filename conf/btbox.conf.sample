@@ -5,8 +5,9 @@
 # format: bus/slot/function
 PASSTHRU_PCI="0/20/0"
 
-# Amount of RAM to allocate to the guest VM (MB).
-VM_RAM="128"
+# Amount of RAM to allocate to the guest VM.
+# Use suffix: M for megabytes, G for gigabytes (e.g., "128M", "1G").
+VM_RAM="128M"
 
 # Number of vCPUs.
 VM_CPUS="1"

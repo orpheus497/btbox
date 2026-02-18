@@ -6,8 +6,20 @@
 
 set -e
 
+# Resolve the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Load Common Library
-[ -f "src/common.sh" ] && . "src/common.sh"
+# When installed, libraries are in /usr/local/lib/btbox/
+# When running from source, they are in the same directory as this script (src/)
+if [ -f "${SCRIPT_DIR}/common.sh" ]; then
+    . "${SCRIPT_DIR}/common.sh"
+elif [ -f "${SCRIPT_DIR}/../lib/btbox/common.sh" ]; then
+    . "${SCRIPT_DIR}/../lib/btbox/common.sh"
+else
+    echo "Error: Cannot find common.sh library" >&2
+    exit 1
+fi
 
 ##Action purpose: Load configuration using common logic.
 load_config
@@ -35,12 +47,12 @@ case "$1" in
         show_banner
         msg_info "Starting btbox..."
         # Call the VMM runner
-        sh src/vmm/bhyve_runner.sh start
+        sh "${BTBOX_SRC_DIR}/vmm/bhyve_runner.sh" start
         ;;
     stop)
         check_root
         msg_info "Stopping btbox..."
-        sh src/vmm/bhyve_runner.sh stop
+        sh "${BTBOX_SRC_DIR}/vmm/bhyve_runner.sh" stop
         ;;
     status)
         ##Condition purpose: Check if VM device exists.

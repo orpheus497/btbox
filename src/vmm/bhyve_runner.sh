@@ -4,14 +4,18 @@
 # btbox - Bhyve Runner
 #
 
-# Load Common Library (Handle path difference if run from root or src)
-[ -f "src/common.sh" ] && . "src/common.sh"
-[ -f "../src/common.sh" ] && . "../src/common.sh"
+# Resolve the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BTBOX_SRC_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Load Common Library
+. "${BTBOX_SRC_DIR}/common.sh"
 
 ##Action purpose: Load configuration.
 load_config
 
-GUEST_DIR="guest/output"
+# Derive paths from project root
+GUEST_DIR="${BTBOX_ROOT}/guest/output"
 
 # Defaults if not set
 VM_RAM=${VM_RAM:-128M}
@@ -47,10 +51,11 @@ cmd_start() {
     msg_info "Loading Kernel..."
     
     # Generate device.map for grub
-    echo "(host) $GUEST_DIR" > device.map
+    DEVICE_MAP="${BTBOX_ROOT}/device.map"
+    echo "(host) $GUEST_DIR" > "$DEVICE_MAP"
     
     # Grub Commands
-    grub-bhyve -m device.map -r host -M "$VM_RAM" "$VM_NAME" <<EOF
+    grub-bhyve -m "$DEVICE_MAP" -r host -M "$VM_RAM" "$VM_NAME" <<EOF
 linux (host)/vmlinuz modules=loop,squashfs,sd-mod,usb-storage console=ttyS0 quiet
 initrd (host)/initramfs
 boot
@@ -60,10 +65,16 @@ EOF
     msg_info "Starting Hypervisor..."
     
     # Construct PCI Passthrough args
-    PASSTHRU_ARG=""
     ##Condition purpose: Add passthrough argument if PCI slot is defined.
+    # Validate PASSTHRU_PCI format (bus/slot/function) to prevent injection
     if [ -n "$PASSTHRU_PCI" ]; then
-        PASSTHRU_ARG="-s 6,passthru,$PASSTHRU_PCI"
+        if ! echo "$PASSTHRU_PCI" | grep -qE '^[0-9]+/[0-9]+/[0-9]+$'; then
+            msg_err "Invalid PASSTHRU_PCI format: $PASSTHRU_PCI (expected bus/slot/function, e.g. 0/20/0)"
+            exit 1
+        fi
+        set -- -s "6,passthru,$PASSTHRU_PCI"
+    else
+        set --
     fi
 
     # Run in background (daemonize? No, usually we wrap in a supervisor or run &)
@@ -74,7 +85,7 @@ EOF
         -s 2:0,virtio-net,"$TAP_DEV" \
         -s 3:0,virtio-blk,"$GUEST_DIR/seed.img" \
         -l com1,"$NMDM_A" \
-        $PASSTHRU_ARG \
+        "$@" \
         "$VM_NAME" &
         
     PID=$!
