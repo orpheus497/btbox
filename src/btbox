@@ -61,6 +61,14 @@ check_vm_running() {
     fi
 }
 
+##Function purpose: Validate a Bluetooth MAC address format.
+validate_mac() {
+    if ! echo "$1" | grep -qE '^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$'; then
+        msg_err "Invalid MAC address: $1 (expected format: XX:XX:XX:XX:XX:XX)"
+        exit 1
+    fi
+}
+
 ##Function purpose: Execute a command inside the guest VM over SSH.
 guest_exec() {
     GUEST_SSH_IP="${GUEST_IP:-10.0.0.2}"
@@ -114,6 +122,7 @@ case "$1" in
             msg_err "Usage: btbox pair <MAC_ADDRESS>"
             exit 1
         fi
+        validate_mac "$2"
         msg_info "Pairing with $2..."
         guest_exec "bluetoothctl pair $2"
         ;;
@@ -124,6 +133,7 @@ case "$1" in
             msg_err "Usage: btbox connect <MAC_ADDRESS>"
             exit 1
         fi
+        validate_mac "$2"
         msg_info "Connecting to $2..."
         guest_exec "bluetoothctl connect $2"
         ;;
@@ -134,6 +144,7 @@ case "$1" in
             msg_err "Usage: btbox disconnect <MAC_ADDRESS>"
             exit 1
         fi
+        validate_mac "$2"
         msg_info "Disconnecting $2..."
         guest_exec "bluetoothctl disconnect $2"
         ;;
@@ -150,6 +161,7 @@ case "$1" in
             msg_err "Usage: btbox trust <MAC_ADDRESS>"
             exit 1
         fi
+        validate_mac "$2"
         msg_info "Trusting $2..."
         guest_exec "bluetoothctl trust $2"
         ;;
@@ -160,6 +172,7 @@ case "$1" in
             msg_err "Usage: btbox remove <MAC_ADDRESS>"
             exit 1
         fi
+        validate_mac "$2"
         msg_info "Removing $2..."
         guest_exec "bluetoothctl remove $2"
         ;;

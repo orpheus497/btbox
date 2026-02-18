@@ -26,10 +26,13 @@ apk add \
 
 ##Step purpose: Configure SSH for host-to-guest command execution.
 echo ">> btbox: Configuring SSH access..."
-ssh-keygen -A
+# Only generate host keys if they don't already exist
+if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
+    ssh-keygen -A
+fi
 mkdir -p /root/.ssh
-# Accept connections from the host (key-based auth will be configured by the host)
-echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+# Allow root login via key-based authentication only
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
 rc-service sshd start
 
 ##Step purpose: Start System Services.
