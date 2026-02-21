@@ -3,6 +3,7 @@
 PREFIX?=/usr/local
 ETCDIR?=$(PREFIX)/etc
 LIBDIR?=$(PREFIX)/lib/btbox
+DATADIR?=$(PREFIX)/share/btbox
 
 all:
 	@echo "Nothing to build. Run 'make install' to install scripts."
@@ -11,6 +12,7 @@ install:
 	mkdir -p $(DESTDIR)$(PREFIX)/sbin
 	mkdir -p $(DESTDIR)$(ETCDIR)
 	mkdir -p $(DESTDIR)$(LIBDIR)/vmm
+	mkdir -p $(DESTDIR)$(DATADIR)/guest/output
 	install -m 0755 src/btbox $(DESTDIR)$(PREFIX)/sbin/btbox
 	install -m 0644 src/common.sh $(DESTDIR)$(LIBDIR)/common.sh
 	install -m 0644 src/ui_utils.sh $(DESTDIR)$(LIBDIR)/ui_utils.sh

@@ -14,8 +14,9 @@ BTBOX_SRC_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ##Action purpose: Load configuration.
 load_config
 
-# Derive paths from project root
-GUEST_DIR="${BTBOX_ROOT}/guest/output"
+# Derive paths from data directory (configurable for installed vs source layout)
+BTBOX_DATA_DIR=${BTBOX_DATA_DIR:-"${BTBOX_ROOT}"}
+GUEST_DIR="${BTBOX_DATA_DIR}/guest/output"
 
 # Defaults if not set
 VM_RAM=${VM_RAM:-128M}

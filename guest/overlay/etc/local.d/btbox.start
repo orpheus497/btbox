@@ -31,8 +31,22 @@ if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
     ssh-keygen -A
 fi
 mkdir -p /root/.ssh
+chmod 700 /root/.ssh
+# Provision authorized_keys from host-provided file if available.
+# The host build system should place the desired public keys at
+# /etc/btbox/host_authorized_keys inside the guest image or overlay.
+if [ -f /etc/btbox/host_authorized_keys ]; then
+    cp /etc/btbox/host_authorized_keys /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+fi
 # Allow root login via key-based authentication only
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+# Ensure public key authentication is enabled
+if ! grep -q "^PubkeyAuthentication" /etc/ssh/sshd_config; then
+    printf '\nPubkeyAuthentication yes\n' >> /etc/ssh/sshd_config
+else
+    sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+fi
 rc-service sshd start
 
 ##Step purpose: Start System Services.
@@ -68,13 +82,19 @@ pipewire-pulse &
 
 ##Step purpose: Configure network interface for host communication.
 echo ">> btbox: Configuring network..."
+# Read network config injected by the host via seed image.
+# Falls back to defaults if the config file is not present.
+BTBOX_GUEST_IP="10.0.0.2"
+BTBOX_GUEST_NETMASK="24"
+if [ -f /etc/btbox/network.conf ]; then
+    . /etc/btbox/network.conf
+fi
 # The TAP interface appears as eth0 in the guest
-# Configure with the guest IP from btbox.conf defaults
-ip addr add 10.0.0.2/24 dev eth0
+ip addr add "${BTBOX_GUEST_IP}/${BTBOX_GUEST_NETMASK}" dev eth0
 ip link set eth0 up
 
 ##Step purpose: Signal readiness.
 echo ">> btbox: Ready."
 echo ">> btbox: Bluetooth audio bridge active."
-echo ">> btbox: Host can connect to PulseAudio at tcp:10.0.0.2:4713"
+echo ">> btbox: Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
 echo ">> btbox: Use 'btbox scan/pair/connect' on the host to manage devices."

@@ -17,3 +17,8 @@ VM_CPUS="1"
 HOST_IP="10.0.0.1"
 # The guest side IP.
 GUEST_IP="10.0.0.2"
+
+# Data directory for guest VM artifacts (vmlinuz, initramfs, seed.img).
+# Default: derived from project root when running from source.
+# When installed: /usr/local/share/btbox
+#BTBOX_DATA_DIR="/usr/local/share/btbox"

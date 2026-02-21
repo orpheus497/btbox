@@ -2,13 +2,15 @@
 ##Script function and purpose: Common library for btbox. Handles config loading, UI inclusion, and shared constants.
 
 # Determine the source directory containing library files.
-# If BTBOX_SRC_DIR is already set by the caller (e.g. bhyve_runner.sh),
-# use that. Otherwise, derive it from $0 or SCRIPT_DIR.
+# Callers must export BTBOX_SRC_DIR before sourcing this file.
+# Fallback: use SCRIPT_DIR if it contains ui_utils.sh.
 if [ -z "$BTBOX_SRC_DIR" ] || [ ! -f "${BTBOX_SRC_DIR}/ui_utils.sh" ]; then
     if [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/ui_utils.sh" ]; then
         BTBOX_SRC_DIR="$SCRIPT_DIR"
     else
-        BTBOX_SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+        echo "Error: BTBOX_SRC_DIR is not set or does not contain ui_utils.sh." >&2
+        echo "Callers must set BTBOX_SRC_DIR to the btbox library directory before sourcing common.sh." >&2
+        exit 1
     fi
 fi
 
@@ -50,9 +52,12 @@ load_config() {
              exit 1
         fi
         
-        # Check permissions (group/world writable)
-        PERMS=$(stat -f "%Sp" "$CONF_FILE")
-        if echo "$PERMS" | grep -q "^....w" || echo "$PERMS" | grep -q "^.......w"; then
+        # Check permissions (group/world writable) using octal mode
+        OCTAL_PERMS=$(stat -f "%OLp" "$CONF_FILE")
+        # Reject if group-write (bit 020) or world-write (bit 002) is set
+        GRP_WRITE=$(( (OCTAL_PERMS / 10 % 10) % 4 / 2 ))
+        OTH_WRITE=$(( (OCTAL_PERMS % 10) % 4 / 2 ))
+        if [ "$GRP_WRITE" -ne 0 ] || [ "$OTH_WRITE" -ne 0 ]; then
              if command -v msg_err >/dev/null; then
                 msg_err "Configuration file $CONF_FILE is insecure (writable by group/world)."
              else

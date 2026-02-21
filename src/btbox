@@ -13,9 +13,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # When installed, libraries are in /usr/local/lib/btbox/
 # When running from source, they are in the same directory as this script (src/)
 if [ -f "${SCRIPT_DIR}/common.sh" ]; then
-    . "${SCRIPT_DIR}/common.sh"
+    BTBOX_SRC_DIR="${SCRIPT_DIR}"
+    . "${BTBOX_SRC_DIR}/common.sh"
 elif [ -f "${SCRIPT_DIR}/../lib/btbox/common.sh" ]; then
-    . "${SCRIPT_DIR}/../lib/btbox/common.sh"
+    BTBOX_SRC_DIR="$(cd "${SCRIPT_DIR}/../lib/btbox" && pwd)"
+    . "${BTBOX_SRC_DIR}/common.sh"
 else
     echo "Error: Cannot find common.sh library" >&2
     exit 1
@@ -72,8 +74,13 @@ validate_mac() {
 ##Function purpose: Execute a command inside the guest VM over SSH.
 guest_exec() {
     GUEST_SSH_IP="${GUEST_IP:-10.0.0.2}"
-    ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 \
-        "root@${GUEST_SSH_IP}" "$1"
+    ssh -o BatchMode=yes \
+        -o PreferredAuthentications=publickey \
+        -o PasswordAuthentication=no \
+        -o StrictHostKeyChecking=accept-new \
+        -o UserKnownHostsFile=/var/run/btbox_known_hosts \
+        -o ConnectTimeout=5 \
+        "root@${GUEST_SSH_IP}" "$@"
 }
 
 ##Action purpose: Parse command line arguments and execute sub-commands.
