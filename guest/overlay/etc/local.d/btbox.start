@@ -41,12 +41,9 @@ if [ -f /etc/btbox/host_authorized_keys ]; then
 fi
 # Allow root login via key-based authentication only
 sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
-# Ensure public key authentication is enabled
-if ! grep -q "^PubkeyAuthentication" /etc/ssh/sshd_config; then
-    printf '\nPubkeyAuthentication yes\n' >> /etc/ssh/sshd_config
-else
-    sed -i 's/^#*PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-fi
+# Ensure public key authentication is enabled (replace or append)
+sed -i '/^#*PubkeyAuthentication/d' /etc/ssh/sshd_config
+printf '\nPubkeyAuthentication yes\n' >> /etc/ssh/sshd_config
 rc-service sshd start
 
 ##Step purpose: Start System Services.

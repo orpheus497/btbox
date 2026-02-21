@@ -71,7 +71,7 @@ validate_mac() {
     fi
 }
 
-##Function purpose: Execute a command inside the guest VM over SSH.
+##Function purpose: Execute command(s) inside the guest VM over SSH.
 guest_exec() {
     GUEST_SSH_IP="${GUEST_IP:-10.0.0.2}"
     ssh -o BatchMode=yes \

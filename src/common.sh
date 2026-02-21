@@ -54,7 +54,10 @@ load_config() {
         
         # Check permissions (group/world writable) using octal mode
         OCTAL_PERMS=$(stat -f "%OLp" "$CONF_FILE")
-        # Reject if group-write (bit 020) or world-write (bit 002) is set
+        # Extract the write bit (bit 1) from the group digit (tens place)
+        # and the other/world digit (ones place) of the octal permissions.
+        # E.g., for mode 0644: group digit=4 (no write), other digit=4 (no write)
+        # E.g., for mode 0666: group digit=6 (write), other digit=6 (write)
         GRP_WRITE=$(( (OCTAL_PERMS / 10 % 10) % 4 / 2 ))
         OTH_WRITE=$(( (OCTAL_PERMS % 10) % 4 / 2 ))
         if [ "$GRP_WRITE" -ne 0 ] || [ "$OTH_WRITE" -ne 0 ]; then
