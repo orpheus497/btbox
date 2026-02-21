@@ -1,0 +1,12 @@
+# Build artifacts
+guest/build/
+guest/output/
+work/
+device.map
+
+# Editor files
+*.swp
+*~
+
+# OS files
+.DS_Store

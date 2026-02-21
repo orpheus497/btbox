@@ -1,6 +1,8 @@
 # btbox (Bluetooth Box for FreeBSD)
 
-**btbox** is a specialized virtualization wrapper designed to bring modern, high-fidelity Bluetooth Audio support to FreeBSD. By leveraging a lightweight Alpine Linux guest running under the Bhyve hypervisor, `btbox` bridges the gap between FreeBSD's stability and Linux's advanced Bluetooth hardware support and codec ecosystem.
+**btbox** is a specialized virtualization wrapper designed to bring modern, high-fidelity Bluetooth Audio and device management to FreeBSD. By leveraging a lightweight Alpine Linux guest running under the Bhyve hypervisor, `btbox` bridges the gap between FreeBSD's stability and Linux's advanced Bluetooth hardware support and codec ecosystem.
+
+Inspired by **[wifibox](https://github.com/pgj/freebsd-wifibox)**, `btbox` applies the same "Linux-in-a-VM-for-drivers" architecture to the Bluetooth audio and device management problem space.
 
 **Creator:** orpheus497
 **Status:** Version 0.1.0-alpha (INTERNAL DEVELOPMENT / UNRELEASED)
@@ -12,11 +14,12 @@
 FreeBSD's native Bluetooth stack (`ng_btx`) is robust but lacks support for modern high-definition audio codecs (LDAC, AptX HD, AAC) and modern Hands-Free Profile (HFP) implementations required by today's consumer headsets. 
 
 `btbox` solves this by:
-1.  **Hardware Passthrough**: Passing a dedicated USB Bluetooth controller (or PCI card) directly to a minimal Alpine Linux VM.
+1.  **Hardware Passthrough**: Passing a dedicated USB Bluetooth controller (or PCI card) directly to a minimal Alpine Linux VM via Bhyve PCI passthrough.
 2.  **Modern Stack**: Utilizing **BlueZ** (the Linux Bluetooth stack) and **PipeWire** (the modern Linux audio server) within the guest to handle complex protocol negotiations.
-3.  **Audio Bridging**: Streaming high-quality audio back to the FreeBSD host over a virtualized network interface using the PulseAudio protocol over TCP.
+3.  **Audio + Microphone Bridging**: Streaming high-quality audio (A2DP, LDAC, AptX, AAC, SBC-XQ) and microphone input (HFP/HSP with mSBC) back to the FreeBSD host over TCP using the PulseAudio protocol.
+4.  **Bluetooth Device Management**: Providing CLI commands to scan, pair, connect, trust, and remove Bluetooth devices — all from the FreeBSD host.
 
-The result is a seamless experience where FreeBSD "sees" a PulseAudio-compatible output device that, in reality, is a high-performance Linux-driven Bluetooth bridge.
+The result is a seamless experience where FreeBSD gets full Bluetooth audio output, microphone input, and device management powered by Linux's mature Bluetooth stack.
 
 ---
 
@@ -36,10 +39,13 @@ The result is a seamless experience where FreeBSD "sees" a PulseAudio-compatible
 
 ## 3. ARCHITECTURE OVERVIEW
 
+*   **Host OS**: FreeBSD (13.0+, 14.0+ recommended).
 *   **Hypervisor**: Bhyve (with `vmm.ko`).
 *   **Guest OS**: Alpine Linux (Standard Virt Kernel).
-*   **Network**: Virtual `tap` device bridged to a `bridge` or local network for TCP audio transport.
-*   **Hardware Control**: `ppt` (PCI passthrough) for USB controllers.
+*   **Bluetooth**: BlueZ + PipeWire + WirePlumber in the guest.
+*   **Audio Transport**: PulseAudio protocol over TCP (port 4713) via virtual `tap` network.
+*   **Hardware Control**: `ppt` (PCI passthrough) for USB Bluetooth controllers.
+*   **Device Management**: SSH from host to guest, exposing `bluetoothctl` commands.
 
 ---
 
@@ -63,6 +69,40 @@ sh src/check_hw.sh
 1.  Copy the sample config: `cp conf/btbox.conf.sample /usr/local/etc/btbox.conf`
 2.  Identify your Bluetooth USB controller using `pciconf -lv`.
 3.  Add the PCI ID to your `/boot/loader.conf` for `ppt` passthrough.
+
+### Usage
+```bash
+# Start the btbox VM
+btbox start
+
+# Scan for nearby Bluetooth devices
+btbox scan
+
+# Pair, trust, and connect a device
+btbox pair AA:BB:CC:DD:EE:FF
+btbox trust AA:BB:CC:DD:EE:FF
+btbox connect AA:BB:CC:DD:EE:FF
+
+# List connected devices
+btbox devices
+
+# Disconnect or remove a device
+btbox disconnect AA:BB:CC:DD:EE:FF
+btbox remove AA:BB:CC:DD:EE:FF
+
+# Check VM status
+btbox status
+
+# Stop the VM
+btbox stop
+```
+
+### Connecting Audio on the Host
+Once a Bluetooth device is connected, configure PulseAudio on the FreeBSD host to use the btbox audio bridge:
+```bash
+# Set the PulseAudio server to the btbox guest
+export PULSE_SERVER=tcp:10.0.0.2:4713
+```
 
 ---
 

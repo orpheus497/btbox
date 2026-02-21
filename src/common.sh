@@ -1,24 +1,38 @@
 #!/bin/sh
 ##Script function and purpose: Common library for btbox. Handles config loading, UI inclusion, and shared constants.
 
+# Determine the source directory containing library files.
+# Callers must export BTBOX_SRC_DIR before sourcing this file.
+# Fallback: use SCRIPT_DIR if it contains ui_utils.sh.
+if [ -z "$BTBOX_SRC_DIR" ] || [ ! -f "${BTBOX_SRC_DIR}/ui_utils.sh" ]; then
+    if [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/ui_utils.sh" ]; then
+        BTBOX_SRC_DIR="$SCRIPT_DIR"
+    else
+        echo "Error: BTBOX_SRC_DIR is not set or does not contain ui_utils.sh." >&2
+        echo "Callers must set BTBOX_SRC_DIR to the btbox library directory before sourcing common.sh." >&2
+        exit 1
+    fi
+fi
+
 # Load UI Utilities
-[ -f "src/ui_utils.sh" ] && . "src/ui_utils.sh"
-[ -f "../src/ui_utils.sh" ] && . "../src/ui_utils.sh"
+. "${BTBOX_SRC_DIR}/ui_utils.sh"
 
 # Constants
 VM_NAME="btbox"
 NMDM_A="/dev/nmdm_${VM_NAME}_A"
 NMDM_B="/dev/nmdm_${VM_NAME}_B"
+export NMDM_A NMDM_B
+
+# Project root is one level up from src/
+BTBOX_ROOT="$(cd "${BTBOX_SRC_DIR}/.." && pwd)"
 
 ##Function purpose: Locate and load the configuration file.
 load_config() {
     CONF_FILE="/usr/local/etc/btbox.conf"
     
     # Check for dev mode / local override
-    if [ -f "conf/btbox.conf.sample" ]; then
-         CONF_FILE="conf/btbox.conf.sample"
-    elif [ -f "../conf/btbox.conf.sample" ]; then
-         CONF_FILE="../conf/btbox.conf.sample"
+    if [ -f "${BTBOX_ROOT}/conf/btbox.conf.sample" ]; then
+         CONF_FILE="${BTBOX_ROOT}/conf/btbox.conf.sample"
     fi
     
     # Allow override via environment
@@ -27,8 +41,8 @@ load_config() {
     fi
 
     if [ -f "$CONF_FILE" ]; then
-        # Security Check
-        OWNER=$(ls -l "$CONF_FILE" | awk '{print $3}')
+        # Security Check: verify file is owned by root (FreeBSD stat)
+        OWNER=$(stat -f "%Su" "$CONF_FILE")
         if [ "$OWNER" != "root" ]; then
              if command -v msg_err >/dev/null; then
                 msg_err "Configuration file $CONF_FILE must be owned by root."
@@ -38,9 +52,15 @@ load_config() {
              exit 1
         fi
         
-        # Check permissions (group/world writable)
-        PERMS=$(stat -f "%Sp" "$CONF_FILE")
-        if echo "$PERMS" | grep -q "^....w" || echo "$PERMS" | grep -q "^.......w"; then
+        # Check permissions (group/world writable) using octal mode
+        OCTAL_PERMS=$(stat -f "%OLp" "$CONF_FILE")
+        # Extract the write bit (bit 1) from the group digit (tens place)
+        # and the other/world digit (ones place) of the octal permissions.
+        # E.g., for mode 0644: group digit=4 (no write), other digit=4 (no write)
+        # E.g., for mode 0666: group digit=6 (write), other digit=6 (write)
+        GRP_WRITE=$(( (OCTAL_PERMS / 10 % 10) % 4 / 2 ))
+        OTH_WRITE=$(( (OCTAL_PERMS % 10) % 4 / 2 ))
+        if [ "$GRP_WRITE" -ne 0 ] || [ "$OTH_WRITE" -ne 0 ]; then
              if command -v msg_err >/dev/null; then
                 msg_err "Configuration file $CONF_FILE is insecure (writable by group/world)."
              else
@@ -49,6 +69,7 @@ load_config() {
              exit 1
         fi
 
+        # shellcheck disable=SC1090
         . "$CONF_FILE"
     else
         if command -v msg_err >/dev/null; then

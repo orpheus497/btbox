@@ -14,16 +14,16 @@ NC='\033[0m' # No Color
 
 ##Function purpose: Display the btbox ASCII banner.
 show_banner() {
-    printf "${CYAN}${BOLD}"
+    printf "%s%s" "${CYAN}" "${BOLD}"
     printf "  _      _   _                \n"
     printf " | |    | | | |               \n"
     printf " | |__  | |_| |__   _____  __ \n"
-    printf " | '_ \ | __| '_ \ / _ \ \/ / \n"
+    printf " | '_ \\ | __| '_ \\ / _ \\ \\/ / \n"
     printf " | |_) || |_| |_) | (_) >  <  \n"
-    printf " |_.__/  \__|_.__/ \___/_/\_\ \n"
+    printf " |_.__/  \\__|_.__/ \\___/_/\\_\\ \n"
     printf "                              \n"
     printf "   Bluetooth Audio for FreeBSD \n"
-    printf "${NC}\n"
+    printf "%s\n" "${NC}"
 }
 
 ##Function purpose: Print an informational message.

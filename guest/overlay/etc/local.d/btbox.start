@@ -1,8 +1,9 @@
 #!/bin/sh
-##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio services.
+##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio + BT management services.
 #
 # btbox startup script
 # Located at /etc/local.d/btbox.start inside the guest
+# Replicates wifibox architecture but for Bluetooth audio, microphone, and device management.
 
 echo ">> btbox: Initializing..."
 
@@ -16,7 +17,34 @@ EOF
 # In a production version, we would mount a persistent disk and cache this.
 echo ">> btbox: Installing packages..."
 apk update
-apk add bluez bluez-deprecated pipewire pipewire-pulse wireplumber
+apk add \
+    bluez bluez-deprecated bluez-btmgmt \
+    pipewire pipewire-pulse pipewire-spa-bluez \
+    wireplumber \
+    openssh-server \
+    dbus
+
+##Step purpose: Configure SSH for host-to-guest command execution.
+echo ">> btbox: Configuring SSH access..."
+# Only generate host keys if they don't already exist
+if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
+    ssh-keygen -A
+fi
+mkdir -p /root/.ssh
+chmod 700 /root/.ssh
+# Provision authorized_keys from host-provided file if available.
+# The host build system should place the desired public keys at
+# /etc/btbox/host_authorized_keys inside the guest image or overlay.
+if [ -f /etc/btbox/host_authorized_keys ]; then
+    cp /etc/btbox/host_authorized_keys /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+fi
+# Allow root login via key-based authentication only
+sed -i 's/^#*PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+# Ensure public key authentication is enabled (replace or append)
+sed -i '/^#*PubkeyAuthentication/d' /etc/ssh/sshd_config
+printf '\nPubkeyAuthentication yes\n' >> /etc/ssh/sshd_config
+rc-service sshd start
 
 ##Step purpose: Start System Services.
 echo ">> btbox: Starting Services..."
@@ -24,15 +52,46 @@ echo ">> btbox: Starting Services..."
 rc-service dbus start
 rc-service bluetooth start
 
+##Step purpose: Power on the Bluetooth adapter.
+echo ">> btbox: Powering on Bluetooth adapter..."
+sleep 2
+bluetoothctl power on
+bluetoothctl discoverable on
+bluetoothctl pairable on
+# Register a default agent for automatic pairing
+bluetoothctl agent on
+bluetoothctl default-agent
+
 ##Step purpose: Configure and Start Audio Bridge.
-# We need to run PipeWire. Usually it runs as user, but we can run as root for this appliance.
+# PipeWire runs as root in this appliance VM
 mkdir -p /run/pipewire
 export PIPEWIRE_RUNTIME_DIR=/run/pipewire
+export XDG_RUNTIME_DIR=/run/pipewire
 
-# Start PipeWire in background
+# Start PipeWire stack in background
+# Order: pipewire -> wireplumber -> pipewire-pulse
+echo ">> btbox: Starting PipeWire audio bridge..."
 pipewire &
-pipewire-pulse &
+sleep 1
 wireplumber &
+sleep 1
+pipewire-pulse &
+
+##Step purpose: Configure network interface for host communication.
+echo ">> btbox: Configuring network..."
+# Read network config injected by the host via seed image.
+# Falls back to defaults if the config file is not present.
+BTBOX_GUEST_IP="10.0.0.2"
+BTBOX_GUEST_NETMASK="24"
+if [ -f /etc/btbox/network.conf ]; then
+    . /etc/btbox/network.conf
+fi
+# The TAP interface appears as eth0 in the guest
+ip addr add "${BTBOX_GUEST_IP}/${BTBOX_GUEST_NETMASK}" dev eth0
+ip link set eth0 up
 
 ##Step purpose: Signal readiness.
-echo ">> btbox: Ready. Waiting for connections."
+echo ">> btbox: Ready."
+echo ">> btbox: Bluetooth audio bridge active."
+echo ">> btbox: Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
+echo ">> btbox: Use 'btbox scan/pair/connect' on the host to manage devices."

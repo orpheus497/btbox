@@ -1,8 +1,11 @@
 #!/bin/sh
 ##Script function and purpose: Helper script to check for hardware virtualization support (VT-x/SVM and VT-d/IOMMU).
 
+# Resolve the directory where this script lives
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Load UI
-[ -f "src/ui_utils.sh" ] && . "src/ui_utils.sh" || . "../src/ui_utils.sh"
+. "${SCRIPT_DIR}/ui_utils.sh"
 
 check_hw() {
     msg_info "Checking Hardware Support..."
