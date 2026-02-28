@@ -70,6 +70,17 @@ sh src/check_hw.sh
 2.  Identify your Bluetooth USB controller using `pciconf -lv`.
 3.  Add the PCI ID to your `/boot/loader.conf` for `ppt` passthrough.
 
+### SSH Key Setup (required for device management)
+The `btbox scan/pair/connect` commands execute `bluetoothctl` inside the guest VM over SSH.
+You must add your host's public SSH key to the guest image overlay before building it:
+```bash
+# Copy your public key into the overlay
+cat ~/.ssh/id_ed25519.pub >> guest/overlay/etc/btbox/host_authorized_keys
+
+# Rebuild the guest image
+sh guest/build_alpine.sh
+```
+
 ### Usage
 ```bash
 # Start the btbox VM

@@ -1,0 +1,14 @@
+# btbox SSH authorized keys
+#
+# Add the FreeBSD host's public SSH key here so btbox can execute
+# bluetoothctl commands inside the guest VM over SSH.
+#
+# To obtain your host's public key:
+#   cat ~/.ssh/id_rsa.pub
+#   cat ~/.ssh/id_ed25519.pub
+#
+# Paste the full public key line below, then rebuild the guest image:
+#   sh guest/build_alpine.sh
+#
+# Example:
+#   ssh-ed25519 AAAA... user@hostname
