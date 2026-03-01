@@ -50,11 +50,16 @@ relay_device() {
         return 0
     fi
 
-    echo ">> btbox-input: Relaying ${_dev_name} to host on port ${RELAY_PORT}"
+    # Assign a unique port per device to avoid listener conflicts.
+    # Extract event number (e.g. event3 -> 3) and offset from base port.
+    _event_num=$(echo "$_dev_name" | sed 's/[^0-9]//g')
+    _dev_port=$((RELAY_PORT + _event_num))
+
+    echo ">> btbox-input: Relaying ${_dev_name} to host on port ${_dev_port}"
     # Use evtest --grab to read events; pipe binary evdev data over TCP
     # The host-side receiver parses the evdev struct (type, code, value)
     if command -v evtest >/dev/null 2>&1; then
-        evtest --grab "$_dev" 2>/dev/null | nc -lk -p "$RELAY_PORT" &
+        evtest --grab "$_dev" 2>/dev/null | nc -lk -p "$_dev_port" &
         echo $! > "$_pid_file"
     fi
 }

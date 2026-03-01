@@ -1,5 +1,5 @@
 -- WirePlumber Bluetooth configuration for btbox
--- Enables all Bluetooth audio profiles, codecs, and input device handling
+-- Enable all Bluetooth audio profiles, codecs, and input device handling
 
 bluez_monitor.properties = {
   -- Enable SBC-XQ, AAC, LDAC, AptX, AptX-HD codecs
