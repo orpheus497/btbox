@@ -129,6 +129,7 @@ test_config_sample_variables() {
     assert_equals "VM_RAM has suffix" "128M" "$VM_RAM"
     assert_equals "VM_CPUS is set" "1" "$VM_CPUS"
     assert_equals "HOST_IP is set" "10.0.0.1" "$HOST_IP"
+    assert_equals "HOST_NETMASK is set" "255.255.255.0" "$HOST_NETMASK"
     assert_equals "GUEST_IP is set" "10.0.0.2" "$GUEST_IP"
     assert_equals "BTBOX_INPUT_RELAY is set" "yes" "$BTBOX_INPUT_RELAY"
     assert_equals "BTBOX_INPUT_PORT is set" "7580" "$BTBOX_INPUT_PORT"

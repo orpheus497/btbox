@@ -123,7 +123,7 @@ case "$1" in
         check_root
         check_vm_running
         msg_info "Scanning for Bluetooth devices..."
-        guest_exec "bluetoothctl --timeout 10 scan on && sleep 10 && bluetoothctl devices"
+        guest_exec "bluetoothctl --timeout 10 scan on; bluetoothctl devices"
         ;;
     pair)
         check_root
