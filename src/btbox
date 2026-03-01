@@ -1,7 +1,9 @@
 #!/bin/sh
 ##Script function and purpose: Main entry point for the btbox utility. Handles CLI argument parsing and dispatching to the VMM runner.
 #
-# btbox - Bluetooth Audio Sandbox for FreeBSD
+# btbox - Bluetooth Device Sandbox for FreeBSD
+# Supports audio (A2DP, HFP/HSP), microphones, and HID peripherals
+# (keyboards, mice, game controllers) via a Linux guest VM.
 #
 
 set -e
@@ -38,6 +40,7 @@ usage() {
     printf "Bluetooth Device Management:\n"
     printf "  scan                 Scan for nearby Bluetooth devices\n"
     printf "  devices              List paired/connected devices\n"
+    printf "  info <MAC>           Show detailed device info (type, profiles)\n"
     printf "  pair <MAC>           Pair with a Bluetooth device\n"
     printf "  trust <MAC>          Trust a paired device\n"
     printf "  connect <MAC>        Connect to a paired device\n"
@@ -160,6 +163,17 @@ case "$1" in
         check_vm_running
         msg_info "Paired/Connected Bluetooth devices:"
         guest_exec "bluetoothctl devices"
+        ;;
+    info)
+        check_root
+        check_vm_running
+        if [ -z "$2" ]; then
+            msg_err "Usage: btbox info <MAC_ADDRESS>"
+            exit 1
+        fi
+        validate_mac "$2"
+        msg_info "Device info for $2..."
+        guest_exec "bluetoothctl info $2"
         ;;
     trust)
         check_root

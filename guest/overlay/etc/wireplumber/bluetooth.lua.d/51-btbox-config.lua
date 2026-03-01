@@ -1,5 +1,5 @@
 -- WirePlumber Bluetooth configuration for btbox
--- Enables all Bluetooth audio profiles and codecs
+-- Enables all Bluetooth audio profiles, codecs, and input device handling
 
 bluez_monitor.properties = {
   -- Enable SBC-XQ, AAC, LDAC, AptX, AptX-HD codecs
@@ -15,6 +15,9 @@ bluez_monitor.properties = {
 
   -- Audio codecs to enable (ordered by preference)
   ["bluez5.codecs"] = "[ ldac aac aptx aptx_hd sbc sbc_xq ]",
+
+  -- Enable all Bluetooth roles including input devices
+  ["bluez5.roles"] = "[ a2dp_sink a2dp_source bap_sink bap_source hsp_hs hsp_ag hfp_hf hfp_ag ]",
 }
 
 bluez_monitor.rules = {
@@ -28,6 +31,18 @@ bluez_monitor.rules = {
     apply_properties = {
       ["bluez5.auto-connect"] = "[ hfp_hf hsp_hs a2dp_sink a2dp_source ]",
       ["device.profile"] = "a2dp-sink",
+    },
+  },
+
+  -- Handle Bluetooth input/HID devices (keyboards, mice, game controllers)
+  {
+    matches = {
+      {
+        { "device.name", "matches", "bluez_input.*" },
+      },
+    },
+    apply_properties = {
+      ["device.autoconnect"] = true,
     },
   },
 }

@@ -22,7 +22,7 @@ show_banner() {
     printf " | |_) || |_| |_) | (_) >  <  \n"
     printf " |_.__/  \\__|_.__/ \\___/_/\\_\\ \n"
     printf "                              \n"
-    printf "   Bluetooth Audio for FreeBSD \n"
+    printf "   Bluetooth Devices for FreeBSD \n"
     printf "%s\n" "${NC}"
 }
 

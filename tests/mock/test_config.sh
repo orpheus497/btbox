@@ -130,6 +130,46 @@ test_config_sample_variables() {
     assert_equals "VM_CPUS is set" "1" "$VM_CPUS"
     assert_equals "HOST_IP is set" "10.0.0.1" "$HOST_IP"
     assert_equals "GUEST_IP is set" "10.0.0.2" "$GUEST_IP"
+    assert_equals "BTBOX_INPUT_RELAY is set" "yes" "$BTBOX_INPUT_RELAY"
+    assert_equals "BTBOX_INPUT_PORT is set" "7580" "$BTBOX_INPUT_PORT"
+}
+
+# --- Test: Input relay script has valid syntax ---
+test_syntax_input_relay() {
+    sh -n "${PROJECT_ROOT}/guest/overlay/etc/btbox/input-relay.sh" 2>&1
+    assert_zero_exit "input-relay.sh has valid syntax" "$?"
+}
+
+# --- Test: BlueZ config has HID support ---
+test_bluez_hid_config() {
+    _conf="${PROJECT_ROOT}/guest/overlay/etc/bluetooth/main.conf"
+    _content=$(cat "$_conf")
+    assert_contains "BlueZ config enables Input profile" "$_content" "Input"
+    assert_contains "BlueZ config has Input section" "$_content" "\[Input\]"
+    assert_contains "BlueZ config has generic class" "$_content" "0x000100"
+}
+
+# --- Test: btbox CLI includes info command ---
+test_btbox_info_command() {
+    _content=$(cat "${PROJECT_ROOT}/src/btbox")
+    assert_contains "btbox has info command" "$_content" "info"
+    assert_contains "btbox info uses bluetoothctl info" "$_content" "bluetoothctl info"
+}
+
+# --- Test: Guest startup includes HID packages ---
+test_guest_hid_packages() {
+    _content=$(cat "${PROJECT_ROOT}/guest/overlay/etc/local.d/btbox.start")
+    assert_contains "Guest installs bluez-plugins" "$_content" "bluez-plugins"
+    assert_contains "Guest installs eudev" "$_content" "eudev"
+    assert_contains "Guest installs libinput" "$_content" "libinput"
+    assert_contains "Guest starts input relay" "$_content" "input-relay"
+}
+
+# --- Test: WirePlumber config handles HID devices ---
+test_wireplumber_hid_config() {
+    _conf="${PROJECT_ROOT}/guest/overlay/etc/wireplumber/bluetooth.lua.d/51-btbox-config.lua"
+    _content=$(cat "$_conf")
+    assert_contains "WirePlumber has input device rule" "$_content" "bluez_input"
 }
 
 # --- Run all tests ---
@@ -145,8 +185,13 @@ test_syntax_check_hw
 test_syntax_bhyve_runner
 test_syntax_build_alpine
 test_syntax_guest_start
+test_syntax_input_relay
 test_ui_functions
 test_config_sample_variables
+test_bluez_hid_config
+test_btbox_info_command
+test_guest_hid_packages
+test_wireplumber_hid_config
 
 echo "========================================="
 echo " Results: ${PASS} passed, ${FAIL} failed"

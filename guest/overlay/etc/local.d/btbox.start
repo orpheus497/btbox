@@ -1,9 +1,10 @@
 #!/bin/sh
-##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio + BT management services.
+##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio + BT + HID management services.
 #
 # btbox startup script
 # Located at /etc/local.d/btbox.start inside the guest
-# Replicates wifibox architecture but for Bluetooth audio, microphone, and device management.
+# Replicates wifibox architecture but for Bluetooth audio, microphone,
+# device management, and HID peripherals (keyboards, mice, game controllers).
 
 echo ">> btbox: Initializing..."
 
@@ -18,11 +19,12 @@ EOF
 echo ">> btbox: Installing packages..."
 apk update
 apk add \
-    bluez bluez-deprecated bluez-btmgmt \
+    bluez bluez-deprecated bluez-btmgmt bluez-plugins \
     pipewire pipewire-pulse pipewire-spa-bluez \
     wireplumber \
     openssh-server \
-    dbus
+    dbus \
+    eudev libinput evtest
 
 ##Step purpose: Configure SSH for host-to-guest command execution.
 echo ">> btbox: Configuring SSH access..."
@@ -52,6 +54,12 @@ echo ">> btbox: Starting Services..."
 rc-service dbus start
 rc-service bluetooth start
 
+##Step purpose: Start udev for input device detection (HID peripherals).
+echo ">> btbox: Starting udev for input device support..."
+rc-service udev start || udevd --daemon 2>/dev/null || true
+# Trigger udev to detect any already-attached devices
+udevadm trigger 2>/dev/null || true
+
 ##Step purpose: Power on the Bluetooth adapter.
 echo ">> btbox: Powering on Bluetooth adapter..."
 sleep 2
@@ -77,6 +85,13 @@ wireplumber &
 sleep 1
 pipewire-pulse &
 
+##Step purpose: Start HID input event relay.
+# Monitors /dev/input/ for Bluetooth HID devices (keyboards, mice, controllers)
+# and relays evdev events to the FreeBSD host over TCP port 7580.
+echo ">> btbox: Starting input event relay..."
+mkdir -p /run/btbox
+sh /etc/btbox/input-relay.sh &
+
 ##Step purpose: Configure network interface for host communication.
 echo ">> btbox: Configuring network..."
 # Read network config injected by the host via seed image.
@@ -92,6 +107,7 @@ ip link set eth0 up
 
 ##Step purpose: Signal readiness.
 echo ">> btbox: Ready."
-echo ">> btbox: Bluetooth audio bridge active."
-echo ">> btbox: Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
+echo ">> btbox: Bluetooth device bridge active."
+echo ">> btbox: Audio:  Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
+echo ">> btbox: Input:  HID event relay on tcp:${BTBOX_GUEST_IP}:7580"
 echo ">> btbox: Use 'btbox scan/pair/connect' on the host to manage devices."
