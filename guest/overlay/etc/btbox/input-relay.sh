@@ -62,10 +62,18 @@ relay_device() {
     # forward them over TCP. Uses socat to only open the device when a host
     # client connects, avoiding blocked reads when no receiver is attached.
     # Bind to the guest-only bridge IP to prevent exposure on other interfaces.
-    if command -v socat >/dev/null 2>&1; then
-        socat -u OPEN:"$_dev",rdonly TCP-LISTEN:"$_dev_port",bind="$RELAY_BIND",reuseaddr,fork &
-        echo $! > "$_pid_file"
-    fi
+    # Validate the device path is within /dev/input/ to prevent arbitrary reads.
+    case "$_dev" in
+        /dev/input/event*)
+            if command -v socat >/dev/null 2>&1; then
+                socat -u OPEN:"$_dev",rdonly TCP-LISTEN:"$_dev_port",bind="$RELAY_BIND",reuseaddr,fork &
+                echo $! > "$_pid_file"
+            fi
+            ;;
+        *)
+            echo ">> btbox-input: Skipping invalid device path: $_dev"
+            ;;
+    esac
 }
 
 ##Function purpose: Scan for and relay new Bluetooth HID devices.
