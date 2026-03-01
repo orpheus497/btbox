@@ -1,17 +1,19 @@
 #!/bin/sh
-##Script function and purpose: Monitors Bluetooth HID devices and relays input events to the FreeBSD host over TCP.
+##Script function and purpose: Monitors Bluetooth HID devices and relays raw input events to the FreeBSD host over TCP.
 #
-# btbox Input Event Relay
+# btbox Input Event Relay (experimental / guest-side only)
 # Runs inside the guest VM.
 # Watches for new Bluetooth HID devices (keyboards, mice, game controllers)
-# and forwards their evdev events to the host via a TCP socket (port 7580).
+# and forwards raw evdev events to the host via a TCP socket.
 #
-# The host-side receiver (btbox) reconstructs these as virtual input devices
-# using cuse(3) or uhid(4).
+# NOTE: A host-side receiver is required to consume the raw struct input_event
+# stream and reconstruct virtual input devices (e.g. via cuse(3) or uhid(4)).
+# The host-side receiver is not yet included in this repository.
 
 set -e
 
 RELAY_PORT="${BTBOX_INPUT_PORT:-7580}"
+RELAY_BIND="${BTBOX_RELAY_BIND:-10.0.0.2}"
 RELAY_PIDDIR="/run/btbox"
 INPUT_DIR="/dev/input"
 
@@ -39,7 +41,7 @@ is_bluetooth_device() {
     return 1
 }
 
-##Function purpose: Relay events from a single input device to the host.
+##Function purpose: Relay raw evdev events from a single input device to the host.
 relay_device() {
     _dev="$1"
     _dev_name=$(basename "$_dev")
@@ -55,11 +57,13 @@ relay_device() {
     _event_num=$(echo "$_dev_name" | sed 's/[^0-9]//g')
     _dev_port=$((RELAY_PORT + _event_num))
 
-    echo ">> btbox-input: Relaying ${_dev_name} to host on port ${_dev_port}"
-    # Use evtest --grab to read events; pipe binary evdev data over TCP
-    # The host-side receiver parses the evdev struct (type, code, value)
-    if command -v evtest >/dev/null 2>&1; then
-        evtest --grab "$_dev" 2>/dev/null | nc -lk -p "$_dev_port" &
+    echo ">> btbox-input: Relaying ${_dev_name} to host on ${RELAY_BIND}:${_dev_port}"
+    # Read raw evdev events (struct input_event) from the device node and
+    # forward them over TCP. Uses socat to only open the device when a host
+    # client connects, avoiding blocked reads when no receiver is attached.
+    # Bind to the guest-only bridge IP to prevent exposure on other interfaces.
+    if command -v socat >/dev/null 2>&1; then
+        socat -u OPEN:"$_dev",rdonly TCP-LISTEN:"$_dev_port",bind="$RELAY_BIND",reuseaddr,fork &
         echo $! > "$_pid_file"
     fi
 }
@@ -78,7 +82,7 @@ scan_and_relay() {
 }
 
 ##Action purpose: Main loop - periodically scan for new BT HID devices.
-echo ">> btbox-input: Input relay started (port ${RELAY_PORT})"
+echo ">> btbox-input: Input relay started (bind ${RELAY_BIND}, base port ${RELAY_PORT})"
 while true; do
     scan_and_relay
     sleep 5

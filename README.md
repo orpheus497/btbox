@@ -45,7 +45,7 @@ The result is a seamless experience where FreeBSD gets full Bluetooth audio outp
 *   **Guest OS**: Alpine Linux (Standard Virt Kernel).
 *   **Bluetooth**: BlueZ + PipeWire + WirePlumber in the guest.
 *   **Audio Transport**: PulseAudio protocol over TCP (port 4713) via virtual `tap` network.
-*   **HID Transport**: evdev event relay over TCP (port 7580) via virtual `tap` network.
+*   **HID Transport**: Raw evdev event relay over TCP (base port 7580) via virtual `tap` network *(experimental, guest-side only — host receiver not yet included)*.
 *   **Hardware Control**: `ppt` (PCI passthrough) for USB Bluetooth controllers.
 *   **Device Management**: SSH from host to guest, exposing `bluetoothctl` commands.
 
@@ -119,8 +119,12 @@ Once a Bluetooth audio device is connected, configure PulseAudio on the FreeBSD 
 export PULSE_SERVER=tcp:10.0.0.2:4713
 ```
 
-### HID Peripherals (Keyboards, Mice, Game Controllers)
-Once a Bluetooth HID device is connected in btbox, the guest relays input events to the host over TCP port 7580. The host-side receiver reconstructs these events as virtual input devices.
+### HID Peripherals (Keyboards, Mice, Game Controllers) — Experimental
+
+> [!NOTE]
+> HID peripheral support is **experimental and guest-side only**. The guest-side relay streams raw evdev events over TCP (base port 7580), but a host-side receiver to reconstruct these as FreeBSD virtual input devices (e.g. via `cuse(3)` or `uhid(4)`) is **not yet included** in this repository. Contributions welcome!
+
+Once a Bluetooth HID device is paired and connected in btbox, the guest recognizes it via BlueZ HID/HOGP profiles:
 
 ```bash
 # Connect a Bluetooth keyboard

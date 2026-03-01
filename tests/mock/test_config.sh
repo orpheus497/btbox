@@ -140,6 +140,13 @@ test_syntax_input_relay() {
     assert_zero_exit "input-relay.sh has valid syntax" "$?"
 }
 
+# --- Test: Input relay uses socat and binds to specific IP ---
+test_input_relay_security() {
+    _content=$(cat "${PROJECT_ROOT}/guest/overlay/etc/btbox/input-relay.sh")
+    assert_contains "Input relay uses socat" "$_content" "socat"
+    assert_contains "Input relay binds to specific IP" "$_content" "bind="
+}
+
 # --- Test: BlueZ config has HID support ---
 test_bluez_hid_config() {
     _conf="${PROJECT_ROOT}/guest/overlay/etc/bluetooth/main.conf"
@@ -162,7 +169,8 @@ test_guest_hid_packages() {
     assert_contains "Guest installs bluez-plugins" "$_content" "bluez-plugins"
     assert_contains "Guest installs eudev" "$_content" "eudev"
     assert_contains "Guest installs libinput" "$_content" "libinput"
-    assert_contains "Guest starts input relay" "$_content" "input-relay"
+    assert_contains "Guest installs socat" "$_content" "socat"
+    assert_contains "Guest starts input relay conditionally" "$_content" "BTBOX_INPUT_RELAY"
 }
 
 # --- Test: WirePlumber config handles HID devices ---
@@ -186,6 +194,7 @@ test_syntax_bhyve_runner
 test_syntax_build_alpine
 test_syntax_guest_start
 test_syntax_input_relay
+test_input_relay_security
 test_ui_functions
 test_config_sample_variables
 test_bluez_hid_config
