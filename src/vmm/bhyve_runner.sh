@@ -23,11 +23,14 @@ VM_RAM=${VM_RAM:-128M}
 VM_CPUS=${VM_CPUS:-1}
 PASSTHRU_PCI=${PASSTHRU_PCI:-""}
 
+BTBOX_STATE_FILE="/var/run/btbox.state"
+
 ##Function purpose: Clean up resources on exit.
 cleanup() {
     if [ -n "$TAP_DEV" ]; then
         msg_info "Cleaning up $TAP_DEV..."
-        ifconfig "$TAP_DEV" destroy
+        ifconfig "$TAP_DEV" destroy 2>/dev/null || true
+        rm -f "$BTBOX_STATE_FILE"
     fi
 }
 
@@ -44,6 +47,13 @@ cmd_start() {
     # TODO: Implement complex bridge logic. For now, simple TAP.
     TAP_DEV=$(ifconfig tap create)
     msg_ok "Created $TAP_DEV"
+    
+    ##Step purpose: Configure host-side IP on the TAP interface.
+    HOST_NETMASK="${HOST_NETMASK:-255.255.255.0}"
+    ifconfig "$TAP_DEV" inet "$HOST_IP" "$HOST_NETMASK"
+    
+    ##Step purpose: Persist TAP device name for cleanup on stop.
+    echo "TAP_DEV=$TAP_DEV" > "$BTBOX_STATE_FILE"
     
     ##Step purpose: Ensure no stale VM instance exists.
     bhyvectl --destroy --vm="$VM_NAME" >/dev/null 2>&1 || true
@@ -103,11 +113,16 @@ cmd_stop() {
     msg_info "Destroying VM..."
     bhyvectl --destroy --vm="$VM_NAME"
     msg_ok "VM Stopped."
-    # Cleanup TAP?
-    # Usually handled by the persistent process or manual cleanup if detached.
-    # This naive implementation assumes start created a persistent tap.
-    # For now, we don't know WHICH tap to destroy unless we tracked it.
-    # Refactoring TODO: Use pidfile or state file to track resources.
+    # Clean up the TAP interface tracked from the start command.
+    if [ -f "$BTBOX_STATE_FILE" ]; then
+        # shellcheck disable=SC1090
+        . "$BTBOX_STATE_FILE"
+        if [ -n "$TAP_DEV" ]; then
+            msg_info "Cleaning up $TAP_DEV..."
+            ifconfig "$TAP_DEV" destroy 2>/dev/null || true
+        fi
+        rm -f "$BTBOX_STATE_FILE"
+    fi
 }
 
 ##Action purpose: Dispatch command.
