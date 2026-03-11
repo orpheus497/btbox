@@ -104,21 +104,26 @@ ip link set eth0 up
 ##Step purpose: Conditionally start HID input event relay.
 # Monitors /dev/input/ for Bluetooth HID devices (keyboards, mice, controllers)
 # and relays raw evdev events to the FreeBSD host over TCP.
-# Only starts if BTBOX_INPUT_RELAY is not set to "no".
-if [ "$BTBOX_INPUT_RELAY" != "no" ]; then
+# Only starts when BTBOX_INPUT_RELAY is explicitly set to "yes" or "true".
+_relay_enabled="no"
+case "$(echo "$BTBOX_INPUT_RELAY" | tr '[:upper:]' '[:lower:]')" in
+    yes|true) _relay_enabled="yes" ;;
+esac
+if [ "$_relay_enabled" = "yes" ]; then
     echo ">> btbox: Starting input event relay..."
     mkdir -p /run/btbox
     BTBOX_INPUT_PORT="$BTBOX_INPUT_PORT" BTBOX_RELAY_BIND="$BTBOX_GUEST_IP" \
         sh /etc/btbox/input-relay.sh &
+    echo $! > /run/btbox/input-relay.pid
 fi
 
 ##Step purpose: Signal readiness.
 echo ">> btbox: Ready."
 echo ">> btbox: Bluetooth device bridge active."
 echo ">> btbox: Audio:  Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
-if [ "$BTBOX_INPUT_RELAY" != "no" ]; then
+if [ "$_relay_enabled" = "yes" ]; then
     echo ">> btbox: Input:  HID event relay on tcp:${BTBOX_GUEST_IP}:${BTBOX_INPUT_PORT}"
 else
-    echo ">> btbox: Input:  HID event relay disabled (BTBOX_INPUT_RELAY=no)"
+    echo ">> btbox: Input:  HID event relay disabled (BTBOX_INPUT_RELAY=${BTBOX_INPUT_RELAY})"
 fi
 echo ">> btbox: Use 'btbox scan/pair/connect' on the host to manage devices."

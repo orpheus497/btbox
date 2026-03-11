@@ -131,7 +131,7 @@ test_config_sample_variables() {
     assert_equals "HOST_IP is set" "10.0.0.1" "$HOST_IP"
     assert_equals "HOST_NETMASK is set" "255.255.255.0" "$HOST_NETMASK"
     assert_equals "GUEST_IP is set" "10.0.0.2" "$GUEST_IP"
-    assert_equals "BTBOX_INPUT_RELAY is set" "yes" "$BTBOX_INPUT_RELAY"
+    assert_equals "BTBOX_INPUT_RELAY is set" "no" "$BTBOX_INPUT_RELAY"
     assert_equals "BTBOX_INPUT_PORT is set" "7580" "$BTBOX_INPUT_PORT"
 }
 
@@ -174,11 +174,11 @@ test_guest_hid_packages() {
     assert_contains "Guest starts input relay conditionally" "$_content" "BTBOX_INPUT_RELAY"
 }
 
-# --- Test: WirePlumber config handles HID devices ---
+# --- Test: WirePlumber config handles Bluetooth audio and input nodes ---
 test_wireplumber_hid_config() {
-    _conf="${PROJECT_ROOT}/guest/overlay/etc/wireplumber/bluetooth.lua.d/51-btbox-config.lua"
+    _conf="${PROJECT_ROOT}/guest/overlay/etc/wireplumber/wireplumber.conf.d/51-btbox-bluetooth.conf"
     _content=$(cat "$_conf")
-    assert_contains "WirePlumber has input device rule" "$_content" "bluez_input"
+    assert_contains "WirePlumber has input node rule" "$_content" "bluez_input"
 }
 
 # --- Run all tests ---

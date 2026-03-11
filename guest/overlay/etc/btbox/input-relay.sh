@@ -12,12 +12,66 @@
 
 set -e
 
-RELAY_PORT="${BTBOX_INPUT_PORT:-7580}"
-RELAY_BIND="${BTBOX_RELAY_BIND:-10.0.0.2}"
 RELAY_PIDDIR="/run/btbox"
 INPUT_DIR="/dev/input"
 
+##Function purpose: Validate that a value is a numeric port in range 1-65535.
+validate_port() {
+    _val="$1"
+    _default="$2"
+    case "$_val" in
+        ''|*[!0-9]*)
+            echo "$_default"
+            return
+            ;;
+    esac
+    if [ "$_val" -ge 1 ] && [ "$_val" -le 65535 ]; then
+        echo "$_val"
+    else
+        echo "$_default"
+    fi
+}
+
+##Function purpose: Validate that a value looks like a plausible IPv4 address or hostname.
+validate_bind() {
+    _val="$1"
+    _default="$2"
+    # Accept IPv4 dotted-quad or simple hostnames (alphanumeric + dots/hyphens)
+    case "$_val" in
+        *[!0-9.a-zA-Z-]*)
+            echo "$_default"
+            return
+            ;;
+    esac
+    if [ -n "$_val" ]; then
+        echo "$_val"
+    else
+        echo "$_default"
+    fi
+}
+
+RELAY_PORT=$(validate_port "${BTBOX_INPUT_PORT:-7580}" "7580")
+RELAY_BIND=$(validate_bind "${BTBOX_RELAY_BIND:-10.0.0.2}" "10.0.0.2")
+
 mkdir -p "$RELAY_PIDDIR"
+
+##Function purpose: Clean up child socat processes and stale pidfiles on exit.
+cleanup_relay() {
+    echo ">> btbox-input: Shutting down input relay..."
+    for _pf in "${RELAY_PIDDIR}"/relay_event*.pid; do
+        [ -f "$_pf" ] || continue
+        _pid=$(cat "$_pf" 2>/dev/null)
+        case "$_pid" in
+            ''|*[!0-9]*) rm -f "$_pf"; continue ;;
+        esac
+        if kill -0 "$_pid" 2>/dev/null; then
+            kill "$_pid" 2>/dev/null || true
+        fi
+        rm -f "$_pf"
+    done
+    echo ">> btbox-input: Input relay stopped."
+}
+trap cleanup_relay INT TERM EXIT
 
 ##Function purpose: Check if an input device is a Bluetooth device.
 is_bluetooth_device() {
@@ -47,15 +101,38 @@ relay_device() {
     _dev_name=$(basename "$_dev")
     _pid_file="${RELAY_PIDDIR}/relay_${_dev_name}.pid"
 
-    # Don't start a duplicate relay
-    if [ -f "$_pid_file" ] && kill -0 "$(cat "$_pid_file")" 2>/dev/null; then
-        return 0
+    # Don't start a duplicate relay — validate PID is numeric and belongs to
+    # a socat process started by this relay before treating it as active.
+    if [ -f "$_pid_file" ]; then
+        _existing_pid=$(cat "$_pid_file" 2>/dev/null)
+        case "$_existing_pid" in
+            ''|*[!0-9]*)
+                # Non-numeric PID — stale file
+                rm -f "$_pid_file"
+                ;;
+            *)
+                if kill -0 "$_existing_pid" 2>/dev/null; then
+                    # Verify the process belongs to this relay (socat)
+                    _cmd=$(ps -p "$_existing_pid" -o comm= 2>/dev/null || true)
+                    case "$_cmd" in
+                        *socat*) return 0 ;;
+                    esac
+                fi
+                # PID not running or not ours — remove stale file
+                rm -f "$_pid_file"
+                ;;
+        esac
     fi
 
     # Assign a unique port per device to avoid listener conflicts.
     # Extract event number (e.g. event3 -> 3) and offset from base port.
     _event_num=$(echo "$_dev_name" | sed 's/[^0-9]//g')
     _dev_port=$((RELAY_PORT + _event_num))
+    _dev_port=$(validate_port "$_dev_port" "")
+    if [ -z "$_dev_port" ]; then
+        echo ">> btbox-input: Skipping ${_dev_name}: computed port out of range"
+        return 0
+    fi
 
     echo ">> btbox-input: Relaying ${_dev_name} to host on ${RELAY_BIND}:${_dev_port}"
     # Read raw evdev events (struct input_event) from the device node and

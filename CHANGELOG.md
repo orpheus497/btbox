@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0-alpha] - 2026-03-01 (UNRELEASED)
 
 ### Added
+
 - **Experimental HID Peripheral Support (guest-side only)**: Bluetooth keyboards, mice, and game controllers can now be paired and used inside the guest via BlueZ HID/HOGP profiles.
 - **Input Event Relay (guest-side only)**: Guest-side raw evdev relay service forwards HID events over TCP (base port 7580) for consumption by an external FreeBSD host receiver (not yet included in this repository).
 - **Device Info Command**: New `btbox info <MAC>` command shows detailed device information including type and supported profiles.
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guest Packages**: Added `bluez-plugins`, `eudev`, `libinput`, `socat`, and `evtest` to guest packages for HID support.
 
 ### Changed
+
 - **Branding**: Updated project description from "Bluetooth Audio" to "Bluetooth Devices" to reflect broader peripheral support.
 - **BlueZ Adapter Class**: Changed from audio-only (`0x200414`) to generic computer class (`0x000100`) to accept all device types.
 - **Documentation**: Expanded README with HID peripheral documentation, supported device type table, and usage examples.

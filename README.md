@@ -125,6 +125,7 @@ btbox stop
 
 ### Connecting Audio on the Host
 Once a Bluetooth audio device is connected, configure PulseAudio on the FreeBSD host to use the btbox audio bridge:
+
 ```bash
 # Set the PulseAudio server to the btbox guest
 export PULSE_SERVER=tcp:10.0.0.2:4713

@@ -33,8 +33,10 @@ GUEST_IP="10.0.0.2"
 #
 # Enable relay of Bluetooth HID events (keyboards, mice, game controllers)
 # from the guest to the host. Requires a host-side receiver (not yet included).
-# "yes" = enabled, "no" = disabled (default: yes)
-BTBOX_INPUT_RELAY="yes"
+# Experimental and default-disabled until the host-side receiver and
+# end-to-end config wiring are implemented.
+# "yes" = enabled, "no" = disabled (default: no)
+BTBOX_INPUT_RELAY="no"
 
 # TCP base port for HID input event relay between guest and host.
 # Each connected HID device uses base_port + event_number.
