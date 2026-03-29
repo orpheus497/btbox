@@ -270,7 +270,6 @@ test_common_portable_stat() {
     assert_contains "common.sh supports FreeBSD stat" "$_content" 'stat -f'
 }
 
-# --- Run all tests ---
 # --- Test: validate_port() accepts valid ports ---
 test_validate_port_valid() {
     validate_port() {
@@ -689,8 +688,6 @@ test_bhyve_pci_format_validation() {
     assert_contains "bhyve_runner validates PASSTHRU_PCI format" "$_content" "Invalid PASSTHRU_PCI format"
     assert_contains "bhyve_runner checks bus/slot/function pattern" "$_content" 'bus/slot/function'
 }
-
-# --- Run all tests ---
 
 # --- Run all tests ---
 echo "========================================="
