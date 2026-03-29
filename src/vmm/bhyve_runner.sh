@@ -29,6 +29,7 @@ GUEST_IP=${GUEST_IP:-"10.0.0.2"}
 
 BTBOX_STATE_FILE="/var/run/btbox.state"
 BTBOX_LOCK_FILE="/var/run/btbox.lock"
+_WROTE_STATE=false
 
 ##Function purpose: Acquire an exclusive lock to prevent concurrent operations.
 acquire_lock() {
@@ -48,7 +49,11 @@ cleanup() {
         msg_info "Cleaning up $TAP_DEV..."
         ifconfig "$TAP_DEV" destroy 2>/dev/null || true
     fi
-    rm -f "$BTBOX_STATE_FILE"
+    # Only remove the state file if this invocation created it,
+    # so we never clobber state for an already-running VM.
+    if [ "$_WROTE_STATE" = "true" ]; then
+        rm -f "$BTBOX_STATE_FILE"
+    fi
     rm -f "${BTBOX_ROOT}/device.map"
     rm -rf "$BTBOX_LOCK_FILE"
 }
@@ -118,6 +123,7 @@ cmd_start() {
 
     ##Step purpose: Persist TAP device name and PID for cleanup on stop.
     echo "TAP_DEV=$TAP_DEV" > "$BTBOX_STATE_FILE"
+    _WROTE_STATE=true
 
     ##Step purpose: Ensure no stale VM instance exists.
     bhyvectl --destroy --vm="$VM_NAME" >/dev/null 2>&1 || true

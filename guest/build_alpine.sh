@@ -30,10 +30,26 @@ OVERLAY_DIR="${GUEST_SCRIPT_DIR}/overlay"
 
 mkdir -p "${WORK_DIR}" "${OUTPUT_DIR}"
 
+##Function purpose: Portable file downloader — uses fetch (FreeBSD), curl, or wget.
+download() {
+    _url="$1"
+    _out="$2"
+    if command -v fetch >/dev/null 2>&1; then
+        fetch -o "$_out" "$_url"
+    elif command -v curl >/dev/null 2>&1; then
+        curl -fSL -o "$_out" "$_url"
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O "$_out" "$_url"
+    else
+        echo ">> ERROR: No download tool found (fetch, curl, or wget required)."
+        exit 1
+    fi
+}
+
 ##Step purpose: Warn if no SSH public key is configured.
 AUTH_KEYS="${OVERLAY_DIR}/etc/btbox/host_authorized_keys"
 if [ -f "$AUTH_KEYS" ]; then
-    if ! grep -qv '^\s*#\|^\s*$' "$AUTH_KEYS" 2>/dev/null; then
+    if ! grep -Eqv '^[[:space:]]*(#|$)' "$AUTH_KEYS" 2>/dev/null; then
         echo ">> WARNING: No SSH public key found in ${AUTH_KEYS}"
         echo ">>          Device management commands (scan/pair/connect) require SSH access."
         echo ">>          Add your host key:  cat ~/.ssh/id_ed25519.pub >> ${AUTH_KEYS}"
@@ -48,14 +64,14 @@ echo ">> Checking for Alpine ISO..."
 ##Condition purpose: Download only if missing.
 if [ ! -f "${WORK_DIR}/${ISO_NAME}" ]; then
     echo ">> Downloading ${ISO_NAME}..."
-    fetch -o "${WORK_DIR}/${ISO_NAME}" "${ISO_URL}"
+    download "${ISO_URL}" "${WORK_DIR}/${ISO_NAME}"
 else
     echo ">> ISO present."
 fi
 
 ##Step purpose: Verify ISO integrity with SHA-256 checksum.
 echo ">> Verifying ISO checksum..."
-if fetch -o "${WORK_DIR}/${ISO_NAME}.sha256" "${SHA256_URL}" 2>/dev/null; then
+if download "${SHA256_URL}" "${WORK_DIR}/${ISO_NAME}.sha256" 2>/dev/null; then
     _expected_hash=$(awk '{print $1}' "${WORK_DIR}/${ISO_NAME}.sha256")
     if command -v sha256 >/dev/null 2>&1; then
         # FreeBSD sha256
@@ -98,13 +114,13 @@ echo ">> Creating Configuration Overlay (apkovl)..."
 tar -C "${OVERLAY_DIR}" -czf "${OUTPUT_DIR}/btbox.apkovl.tar.gz" .
 
 ##Step purpose: Create the Seed Image for config injection.
-echo ">> Creating Seed Image (FAT32)..."
+echo ">> Creating Seed Image (FAT16)..."
 # Create a temporary directory for the seed content
 SEED_DIR="${WORK_DIR}/seed"
 mkdir -p "${SEED_DIR}"
 cp "${OUTPUT_DIR}/btbox.apkovl.tar.gz" "${SEED_DIR}/"
 
-# Create a FAT32 image — use makefs with FreeBSD-compatible options
+# Create a FAT16 image — use makefs with FreeBSD-compatible options
 if command -v makefs >/dev/null 2>&1; then
     makefs -t msdos -o fat_type=16 -s 10m "${OUTPUT_DIR}/seed.img" "${SEED_DIR}"
 elif command -v truncate >/dev/null 2>&1 && command -v mkfs.fat >/dev/null 2>&1; then

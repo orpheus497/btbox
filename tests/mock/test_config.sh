@@ -232,6 +232,36 @@ test_builder_checksum() {
     assert_contains "Builder warns about SSH key" "$_content" "host_authorized_keys"
 }
 
+# --- Test: build_alpine.sh has portable download helper ---
+test_builder_download_portability() {
+    _content=$(cat "${PROJECT_ROOT}/guest/build_alpine.sh")
+    assert_contains "Builder has download() function" "$_content" "download()"
+    assert_contains "Builder supports fetch" "$_content" "fetch -o"
+    assert_contains "Builder supports curl fallback" "$_content" "curl -fSL"
+    assert_contains "Builder supports wget fallback" "$_content" "wget -q"
+    assert_contains "Builder uses FAT16 label (not FAT32)" "$_content" "FAT16"
+}
+
+# --- Test: build_alpine.sh uses POSIX grep patterns ---
+test_builder_posix_grep() {
+    _content=$(cat "${PROJECT_ROOT}/guest/build_alpine.sh")
+    assert_contains "Builder uses POSIX character class in grep" "$_content" '[[:space:]]'
+}
+
+# --- Test: btbox check_ssh_key uses POSIX grep and errors on missing file ---
+test_ssh_key_check_posix() {
+    _content=$(cat "${PROJECT_ROOT}/src/btbox")
+    assert_contains "check_ssh_key uses POSIX character class" "$_content" '[[:space:]]'
+    assert_contains "check_ssh_key errors on missing file" "$_content" "Missing SSH authorized keys file"
+}
+
+# --- Test: bhyve_runner guards state file removal ---
+test_bhyve_state_guard() {
+    _content=$(cat "${PROJECT_ROOT}/src/vmm/bhyve_runner.sh")
+    assert_contains "bhyve_runner has _WROTE_STATE flag" "$_content" "_WROTE_STATE"
+    assert_contains "bhyve_runner guards state file removal" "$_content" '_WROTE_STATE.*true'
+}
+
 # --- Test: common.sh portable stat ---
 test_common_portable_stat() {
     _content=$(cat "${PROJECT_ROOT}/src/common.sh")
@@ -265,6 +295,10 @@ test_guest_exec_options
 test_bhyve_runner_features
 test_guest_boot_order
 test_builder_checksum
+test_builder_download_portability
+test_builder_posix_grep
+test_ssh_key_check_posix
+test_bhyve_state_guard
 test_common_portable_stat
 
 echo "========================================="

@@ -80,12 +80,19 @@ check_ssh_key() {
     _overlay="${BTBOX_ROOT}/guest/overlay/etc/btbox/host_authorized_keys"
     if [ -f "$_overlay" ]; then
         # Check if file has any non-comment, non-empty lines (actual keys)
-        if ! grep -qv '^\s*#\|^\s*$' "$_overlay" 2>/dev/null; then
+        if ! grep -Eqv '^[[:space:]]*(#|$)' "$_overlay" 2>/dev/null; then
             msg_warn "No SSH public key found in $_overlay"
             msg_warn "Guest commands (scan/pair/connect) require SSH key access."
             msg_warn "Run: cat ~/.ssh/id_ed25519.pub >> $_overlay"
             msg_warn "Then rebuild: sh guest/build_alpine.sh"
         fi
+    else
+        msg_err "Missing SSH authorized keys file: $_overlay"
+        msg_err "Guest commands (scan/pair/connect) require SSH key access."
+        msg_err "Create the file and add your SSH public key, for example:"
+        msg_err "  cat ~/.ssh/id_ed25519.pub >> $_overlay"
+        msg_err "Then rebuild the guest image: sh guest/build_alpine.sh"
+        exit 1
     fi
 }
 
