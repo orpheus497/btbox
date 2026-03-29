@@ -172,6 +172,7 @@ test_guest_hid_packages() {
     assert_contains "Guest installs libinput" "$_content" "libinput"
     assert_contains "Guest installs socat" "$_content" "socat"
     assert_contains "Guest starts input relay conditionally" "$_content" "BTBOX_INPUT_RELAY"
+    assert_contains "Guest has BTBOX_INPUT_RELAY fallback assignment" "$_content" 'BTBOX_INPUT_RELAY:-'
 }
 
 # --- Test: WirePlumber config handles Bluetooth audio and input nodes ---

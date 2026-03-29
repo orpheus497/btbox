@@ -52,8 +52,34 @@ validate_bind() {
 
 RELAY_PORT=$(validate_port "${BTBOX_INPUT_PORT:-7580}" "7580")
 RELAY_BIND=$(validate_bind "${BTBOX_RELAY_BIND:-10.0.0.2}" "10.0.0.2")
+RELAY_PIDFILE="${RELAY_PIDDIR}/input-relay.pid"
 
 mkdir -p "$RELAY_PIDDIR"
+
+# Check for an existing relay process before starting
+if [ -f "$RELAY_PIDFILE" ]; then
+    _existing=$(cat "$RELAY_PIDFILE" 2>/dev/null)
+    case "$_existing" in
+        ''|*[!0-9]*)
+            rm -f "$RELAY_PIDFILE"
+            ;;
+        *)
+            if kill -0 "$_existing" 2>/dev/null; then
+                _cmd=$(ps -p "$_existing" -o comm= 2>/dev/null || true)
+                case "$_cmd" in
+                    *sh*|*input-relay*)
+                        echo ">> btbox-input: Relay already running (PID $_existing), exiting."
+                        exit 0
+                        ;;
+                esac
+            fi
+            rm -f "$RELAY_PIDFILE"
+            ;;
+    esac
+fi
+
+# Record our own PID for graceful shutdown
+echo $$ > "$RELAY_PIDFILE"
 
 ##Function purpose: Clean up child socat processes and stale pidfiles on exit.
 cleanup_relay() {
@@ -69,6 +95,7 @@ cleanup_relay() {
         fi
         rm -f "$_pf"
     done
+    rm -f "$RELAY_PIDFILE"
     echo ">> btbox-input: Input relay stopped."
 }
 trap cleanup_relay INT TERM EXIT

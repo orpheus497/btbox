@@ -19,7 +19,7 @@ if [ -f /etc/btbox/network.conf ]; then
     . /etc/btbox/network.conf
 fi
 # Apply defaults after sourcing config so file values take precedence
-BTBOX_INPUT_RELAY="${BTBOX_INPUT_RELAY:-yes}"
+BTBOX_INPUT_RELAY="${BTBOX_INPUT_RELAY:-no}"
 BTBOX_INPUT_PORT="${BTBOX_INPUT_PORT:-7580}"
 # The TAP interface appears as eth0 in the guest
 ip addr add "${BTBOX_GUEST_IP}/${BTBOX_GUEST_NETMASK}" dev eth0 2>/dev/null || true
@@ -156,7 +156,6 @@ if [ "$_relay_enabled" = "yes" ]; then
     mkdir -p /run/btbox
     BTBOX_INPUT_PORT="$BTBOX_INPUT_PORT" BTBOX_RELAY_BIND="$BTBOX_GUEST_IP" \
         sh /etc/btbox/input-relay.sh &
-    echo $! > /run/btbox/input-relay.pid
 fi
 
 ##Step purpose: Signal readiness.
