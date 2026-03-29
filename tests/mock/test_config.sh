@@ -181,6 +181,64 @@ test_wireplumber_hid_config() {
     assert_contains "WirePlumber has input node rule" "$_content" "bluez_input"
 }
 
+# --- Test: btbox CLI has check-hw command ---
+test_btbox_check_hw_command() {
+    _content=$(cat "${PROJECT_ROOT}/src/btbox")
+    assert_contains "btbox has check-hw command" "$_content" "check-hw"
+    assert_contains "btbox check-hw sources check_hw.sh" "$_content" "check_hw.sh"
+}
+
+# --- Test: SSH guest_exec has keepalive and error handling ---
+test_guest_exec_options() {
+    _content=$(cat "${PROJECT_ROOT}/src/btbox")
+    assert_contains "SSH uses ServerAliveInterval" "$_content" "ServerAliveInterval"
+    assert_contains "SSH uses ServerAliveCountMax" "$_content" "ServerAliveCountMax"
+    assert_contains "guest_exec has error handling" "$_content" "Guest command failed"
+}
+
+# --- Test: bhyve_runner has lockfile and boot wait ---
+test_bhyve_runner_features() {
+    _content=$(cat "${PROJECT_ROOT}/src/vmm/bhyve_runner.sh")
+    assert_contains "bhyve_runner has set -e" "$_content" "set -e"
+    assert_contains "bhyve_runner has lockfile" "$_content" "BTBOX_LOCK_FILE"
+    assert_contains "bhyve_runner has boot wait" "$_content" "wait_for_guest"
+    assert_contains "bhyve_runner cleans up device.map" "$_content" "device.map"
+    assert_contains "bhyve_runner validates guest artifacts" "$_content" "check_guest_artifacts"
+    assert_contains "bhyve_runner validates ppt driver" "$_content" "ppt"
+}
+
+# --- Test: Guest startup has networking before packages ---
+test_guest_boot_order() {
+    _content=$(cat "${PROJECT_ROOT}/guest/overlay/etc/local.d/btbox.start")
+    # Network config must appear before apk update for package fetching
+    _net_line=$(grep -n "ip addr add" "${PROJECT_ROOT}/guest/overlay/etc/local.d/btbox.start" | head -1 | cut -d: -f1)
+    _apk_line=$(grep -n "apk update" "${PROJECT_ROOT}/guest/overlay/etc/local.d/btbox.start" | head -1 | cut -d: -f1)
+    if [ -n "$_net_line" ] && [ -n "$_apk_line" ] && [ "$_net_line" -lt "$_apk_line" ]; then
+        echo "PASS: Network configured before package install"
+        PASS=$((PASS + 1))
+    else
+        echo "FAIL: Network should be configured before apk update (net:${_net_line} apk:${_apk_line})"
+        FAIL=$((FAIL + 1))
+    fi
+    assert_contains "Guest checks for BT adapter" "$_content" "_adapter_found"
+    assert_contains "Guest verifies PipeWire started" "$_content" "kill -0"
+}
+
+# --- Test: build_alpine.sh has checksum verification ---
+test_builder_checksum() {
+    _content=$(cat "${PROJECT_ROOT}/guest/build_alpine.sh")
+    assert_contains "Builder verifies SHA-256" "$_content" "sha256"
+    assert_contains "Builder validates artifacts" "$_content" "_build_ok"
+    assert_contains "Builder warns about SSH key" "$_content" "host_authorized_keys"
+}
+
+# --- Test: common.sh portable stat ---
+test_common_portable_stat() {
+    _content=$(cat "${PROJECT_ROOT}/src/common.sh")
+    assert_contains "common.sh supports GNU stat" "$_content" 'stat -c'
+    assert_contains "common.sh supports FreeBSD stat" "$_content" 'stat -f'
+}
+
 # --- Run all tests ---
 echo "========================================="
 echo " btbox Test Suite"
@@ -202,6 +260,12 @@ test_bluez_hid_config
 test_btbox_info_command
 test_guest_hid_packages
 test_wireplumber_hid_config
+test_btbox_check_hw_command
+test_guest_exec_options
+test_bhyve_runner_features
+test_guest_boot_order
+test_builder_checksum
+test_common_portable_stat
 
 echo "========================================="
 echo " Results: ${PASS} passed, ${FAIL} failed"

@@ -22,12 +22,26 @@ ARCH=${ARCH:-"x86_64"}
 
 ISO_NAME="alpine-virt-${ALPINE_VERSION}-${ARCH}.iso"
 ISO_URL="${MIRROR}/${ALPINE_MAJOR}/releases/${ARCH}/${ISO_NAME}"
+SHA256_URL="${MIRROR}/${ALPINE_MAJOR}/releases/${ARCH}/${ISO_NAME}.sha256"
 
 WORK_DIR="${GUEST_SCRIPT_DIR}/build"
 OUTPUT_DIR="${GUEST_SCRIPT_DIR}/output"
 OVERLAY_DIR="${GUEST_SCRIPT_DIR}/overlay"
 
 mkdir -p "${WORK_DIR}" "${OUTPUT_DIR}"
+
+##Step purpose: Warn if no SSH public key is configured.
+AUTH_KEYS="${OVERLAY_DIR}/etc/btbox/host_authorized_keys"
+if [ -f "$AUTH_KEYS" ]; then
+    if ! grep -qv '^\s*#\|^\s*$' "$AUTH_KEYS" 2>/dev/null; then
+        echo ">> WARNING: No SSH public key found in ${AUTH_KEYS}"
+        echo ">>          Device management commands (scan/pair/connect) require SSH access."
+        echo ">>          Add your host key:  cat ~/.ssh/id_ed25519.pub >> ${AUTH_KEYS}"
+        echo ""
+    fi
+else
+    echo ">> WARNING: ${AUTH_KEYS} not found. SSH access to guest will not work."
+fi
 
 ##Step purpose: Check for or download the Alpine ISO.
 echo ">> Checking for Alpine ISO..."
@@ -37,6 +51,34 @@ if [ ! -f "${WORK_DIR}/${ISO_NAME}" ]; then
     fetch -o "${WORK_DIR}/${ISO_NAME}" "${ISO_URL}"
 else
     echo ">> ISO present."
+fi
+
+##Step purpose: Verify ISO integrity with SHA-256 checksum.
+echo ">> Verifying ISO checksum..."
+if fetch -o "${WORK_DIR}/${ISO_NAME}.sha256" "${SHA256_URL}" 2>/dev/null; then
+    _expected_hash=$(awk '{print $1}' "${WORK_DIR}/${ISO_NAME}.sha256")
+    if command -v sha256 >/dev/null 2>&1; then
+        # FreeBSD sha256
+        _actual_hash=$(sha256 -q "${WORK_DIR}/${ISO_NAME}")
+    elif command -v sha256sum >/dev/null 2>&1; then
+        # GNU/Linux sha256sum
+        _actual_hash=$(sha256sum "${WORK_DIR}/${ISO_NAME}" | awk '{print $1}')
+    else
+        echo ">> WARNING: No sha256 tool found. Skipping checksum verification."
+        _expected_hash=""
+        _actual_hash=""
+    fi
+    if [ -n "$_expected_hash" ] && [ "$_expected_hash" != "$_actual_hash" ]; then
+        echo ">> ERROR: SHA-256 checksum mismatch!"
+        echo ">>   Expected: ${_expected_hash}"
+        echo ">>   Actual:   ${_actual_hash}"
+        echo ">> Delete ${WORK_DIR}/${ISO_NAME} and re-download."
+        exit 1
+    elif [ -n "$_expected_hash" ]; then
+        echo ">> Checksum verified."
+    fi
+else
+    echo ">> WARNING: Could not fetch checksum file. Skipping verification."
 fi
 
 ##Step purpose: Extract Kernel and Initramfs from ISO.
@@ -62,8 +104,38 @@ SEED_DIR="${WORK_DIR}/seed"
 mkdir -p "${SEED_DIR}"
 cp "${OUTPUT_DIR}/btbox.apkovl.tar.gz" "${SEED_DIR}/"
 
-# Use makefs to create a FAT32 image
-makefs -t msdos -s 10m "${OUTPUT_DIR}/seed.img" "${SEED_DIR}"
+# Create a FAT32 image — use makefs with FreeBSD-compatible options
+if command -v makefs >/dev/null 2>&1; then
+    makefs -t msdos -o fat_type=16 -s 10m "${OUTPUT_DIR}/seed.img" "${SEED_DIR}"
+elif command -v truncate >/dev/null 2>&1 && command -v mkfs.fat >/dev/null 2>&1; then
+    # Fallback for Linux build hosts (CI environment)
+    truncate -s 10M "${OUTPUT_DIR}/seed.img"
+    mkfs.fat -F 16 "${OUTPUT_DIR}/seed.img"
+    # Copy files using mcopy if available, otherwise warn
+    if command -v mcopy >/dev/null 2>&1; then
+        mcopy -i "${OUTPUT_DIR}/seed.img" "${SEED_DIR}/btbox.apkovl.tar.gz" ::/
+    else
+        echo ">> WARNING: mcopy not found. Seed image created but overlay not injected."
+        echo ">>          Install mtools or use FreeBSD makefs instead."
+    fi
+else
+    echo ">> ERROR: No tool to create FAT image (makefs or mkfs.fat)."
+    exit 1
+fi
+
+##Step purpose: Validate build artifacts.
+echo ">> Validating build artifacts..."
+_build_ok=true
+for _artifact in vmlinuz initramfs btbox.apkovl.tar.gz seed.img; do
+    if [ ! -f "${OUTPUT_DIR}/${_artifact}" ]; then
+        echo ">> ERROR: Missing artifact: ${OUTPUT_DIR}/${_artifact}"
+        _build_ok=false
+    fi
+done
+if [ "$_build_ok" = "false" ]; then
+    echo ">> Build FAILED — one or more artifacts missing."
+    exit 1
+fi
 
 ##Step purpose: Report completion.
 echo ">> Guest Build Complete."

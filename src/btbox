@@ -36,7 +36,8 @@ usage() {
     printf "  start                Start the btbox VM\n"
     printf "  stop                 Stop the btbox VM\n"
     printf "  status               Show VM status\n"
-    printf "  console              Attach to VM console\n\n"
+    printf "  console              Attach to VM console\n"
+    printf "  check-hw             Verify hardware virtualization support\n\n"
     printf "Bluetooth Device Management:\n"
     printf "  scan                 Scan for nearby Bluetooth devices\n"
     printf "  devices              List paired/connected devices\n"
@@ -74,22 +75,47 @@ validate_mac() {
     fi
 }
 
+##Function purpose: Verify SSH key is configured for guest communication.
+check_ssh_key() {
+    _overlay="${BTBOX_ROOT}/guest/overlay/etc/btbox/host_authorized_keys"
+    if [ -f "$_overlay" ]; then
+        # Check if file has any non-comment, non-empty lines (actual keys)
+        if ! grep -qv '^\s*#\|^\s*$' "$_overlay" 2>/dev/null; then
+            msg_warn "No SSH public key found in $_overlay"
+            msg_warn "Guest commands (scan/pair/connect) require SSH key access."
+            msg_warn "Run: cat ~/.ssh/id_ed25519.pub >> $_overlay"
+            msg_warn "Then rebuild: sh guest/build_alpine.sh"
+        fi
+    fi
+}
+
 ##Function purpose: Execute command(s) inside the guest VM over SSH.
 guest_exec() {
     GUEST_SSH_IP="${GUEST_IP:-10.0.0.2}"
+    BTBOX_KNOWN_HOSTS="/var/run/btbox_known_hosts"
+    # Ensure the known_hosts file can be created
+    mkdir -p "$(dirname "$BTBOX_KNOWN_HOSTS")" 2>/dev/null || true
     ssh -o BatchMode=yes \
         -o PreferredAuthentications=publickey \
         -o PasswordAuthentication=no \
         -o StrictHostKeyChecking=accept-new \
-        -o UserKnownHostsFile=/var/run/btbox_known_hosts \
+        -o UserKnownHostsFile="$BTBOX_KNOWN_HOSTS" \
         -o ConnectTimeout=5 \
+        -o ServerAliveInterval=5 \
+        -o ServerAliveCountMax=3 \
         "root@${GUEST_SSH_IP}" "$@"
+    _rc=$?
+    if [ "$_rc" -ne 0 ]; then
+        msg_err "Guest command failed (exit code $_rc). Check VM status with: btbox status"
+        return "$_rc"
+    fi
 }
 
 ##Action purpose: Parse command line arguments and execute sub-commands.
 case "$1" in
     start)
         check_root
+        check_ssh_key
         show_banner
         msg_info "Starting btbox..."
         # Call the VMM runner
@@ -196,6 +222,10 @@ case "$1" in
         validate_mac "$2"
         msg_info "Removing $2..."
         guest_exec "bluetoothctl remove $2"
+        ;;
+    check-hw)
+        . "${BTBOX_SRC_DIR}/check_hw.sh"
+        check_hw
         ;;
     *)
         usage

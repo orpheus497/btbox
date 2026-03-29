@@ -41,32 +41,48 @@ load_config() {
     fi
 
     if [ -f "$CONF_FILE" ]; then
-        # Security Check: verify file is owned by root (FreeBSD stat)
-        OWNER=$(stat -f "%Su" "$CONF_FILE")
-        if [ "$OWNER" != "root" ]; then
-             if command -v msg_err >/dev/null; then
-                msg_err "Configuration file $CONF_FILE must be owned by root."
-             else
-                echo "Error: Configuration file $CONF_FILE must be owned by root."
-             fi
-             exit 1
-        fi
-        
-        # Check permissions (group/world writable) using octal mode
-        OCTAL_PERMS=$(stat -f "%OLp" "$CONF_FILE")
-        # Extract the write bit (bit 1) from the group digit (tens place)
-        # and the other/world digit (ones place) of the octal permissions.
-        # E.g., for mode 0644: group digit=4 (no write), other digit=4 (no write)
-        # E.g., for mode 0666: group digit=6 (write), other digit=6 (write)
-        GRP_WRITE=$(( (OCTAL_PERMS / 10 % 10) % 4 / 2 ))
-        OTH_WRITE=$(( (OCTAL_PERMS % 10) % 4 / 2 ))
-        if [ "$GRP_WRITE" -ne 0 ] || [ "$OTH_WRITE" -ne 0 ]; then
-             if command -v msg_err >/dev/null; then
-                msg_err "Configuration file $CONF_FILE is insecure (writable by group/world)."
-             else
-                echo "Error: Configuration file $CONF_FILE is insecure (writable by group/world)."
-             fi
-             exit 1
+        # Security Check: verify file ownership and permissions.
+        # Only enforce when running as root (production mode).
+        # In dev mode (non-root), the sample config may be user-owned.
+        if [ "$(id -u)" -eq 0 ]; then
+            # Detect stat flavor: FreeBSD uses -f, GNU/Linux uses -c
+            if stat -f "%Su" "$CONF_FILE" >/dev/null 2>&1; then
+                # FreeBSD stat
+                OWNER=$(stat -f "%Su" "$CONF_FILE")
+                OCTAL_PERMS=$(stat -f "%OLp" "$CONF_FILE")
+            elif stat -c "%U" "$CONF_FILE" >/dev/null 2>&1; then
+                # GNU/Linux stat
+                OWNER=$(stat -c "%U" "$CONF_FILE")
+                OCTAL_PERMS=$(stat -c "%a" "$CONF_FILE")
+            else
+                OWNER="unknown"
+                OCTAL_PERMS="000"
+            fi
+
+            if [ "$OWNER" != "root" ]; then
+                 if command -v msg_err >/dev/null; then
+                    msg_err "Configuration file $CONF_FILE must be owned by root."
+                 else
+                    echo "Error: Configuration file $CONF_FILE must be owned by root."
+                 fi
+                 exit 1
+            fi
+
+            # Check permissions (group/world writable) using octal mode
+            # Extract the write bit (bit 1) from the group digit (tens place)
+            # and the other/world digit (ones place) of the octal permissions.
+            # E.g., for mode 0644: group digit=4 (no write), other digit=4 (no write)
+            # E.g., for mode 0666: group digit=6 (write), other digit=6 (write)
+            GRP_WRITE=$(( (OCTAL_PERMS / 10 % 10) % 4 / 2 ))
+            OTH_WRITE=$(( (OCTAL_PERMS % 10) % 4 / 2 ))
+            if [ "$GRP_WRITE" -ne 0 ] || [ "$OTH_WRITE" -ne 0 ]; then
+                 if command -v msg_err >/dev/null; then
+                    msg_err "Configuration file $CONF_FILE is insecure (writable by group/world)."
+                 else
+                    echo "Error: Configuration file $CONF_FILE is insecure (writable by group/world)."
+                 fi
+                 exit 1
+            fi
         fi
 
         # shellcheck disable=SC1090
