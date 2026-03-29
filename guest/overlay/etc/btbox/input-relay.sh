@@ -79,7 +79,7 @@ if [ -f "$RELAY_PIDFILE" ]; then
 fi
 
 # Record our own PID for graceful shutdown
-echo $$ > "$RELAY_PIDFILE"
+echo "$$" > "$RELAY_PIDFILE"
 
 ##Function purpose: Clean up child socat processes and stale pidfiles on exit.
 cleanup_relay() {
