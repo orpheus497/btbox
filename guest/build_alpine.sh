@@ -131,8 +131,9 @@ elif command -v truncate >/dev/null 2>&1 && command -v mkfs.fat >/dev/null 2>&1;
     if command -v mcopy >/dev/null 2>&1; then
         mcopy -i "${OUTPUT_DIR}/seed.img" "${SEED_DIR}/btbox.apkovl.tar.gz" ::/
     else
-        echo ">> WARNING: mcopy not found. Seed image created but overlay not injected."
-        echo ">>          Install mtools or use FreeBSD makefs instead."
+        echo ">> ERROR: mcopy not found. Cannot inject btbox.apkovl.tar.gz into seed image."
+        echo ">>        Install mtools (mcopy) or use FreeBSD makefs instead."
+        exit 1
     fi
 else
     echo ">> ERROR: No tool to create FAT image (makefs or mkfs.fat)."

@@ -13,9 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Input Event Relay (guest-side only)**: Guest-side raw evdev relay service forwards HID events over TCP (base port 7580) for consumption by an external FreeBSD host receiver (not yet included in this repository).
 - **Device Info Command**: New `btbox info <MAC>` command shows detailed device information including type and supported profiles.
 - **Hardware Check Command**: New `btbox check-hw` command exposes VT-x/VT-d hardware verification directly from the CLI.
-- **BlueZ Input Profile**: Enabled `Input` profile and `[Input]` section in BlueZ configuration for HID device handling.
-- **WirePlumber HID Rules**: Added device matching rules for Bluetooth input/HID devices.
-- **Configuration Options**: Added `BTBOX_INPUT_RELAY` and `BTBOX_INPUT_PORT` config options (reserved for future end-to-end HID relay wiring).
+- **BlueZ Input Profile**: Enabled `Input` profile and `[Input]` section in BlueZ configuration; guest-side HID event handling is performed by `input-relay.sh`.
+- **WirePlumber Audio Node Rules**: Added `bluez_input.*` node matching rule for Bluetooth audio input auto-connect; WirePlumber remains audio-only and does not control HID/input devices (those are handled by `input-relay.sh`).
+- **Configuration Options**: Added `BTBOX_INPUT_RELAY` and `BTBOX_INPUT_PORT` config options (reserved for future end-to-end HID relay wiring; not yet propagated from host to guest).
 - **Guest Packages**: Added `bluez-plugins`, `eudev`, `libinput`, `socat`, and `evtest` to guest packages for HID support.
 
 ### Changed

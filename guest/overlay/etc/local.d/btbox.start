@@ -163,7 +163,7 @@ echo ">> btbox: Ready."
 echo ">> btbox: Bluetooth device bridge active."
 echo ">> btbox: Audio:  Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
 if [ "$_relay_enabled" = "yes" ]; then
-    echo ">> btbox: Input:  HID event relay on tcp:${BTBOX_GUEST_IP}:${BTBOX_INPUT_PORT}"
+    echo ">> btbox: Input:  HID event relay on tcp:${BTBOX_GUEST_IP}:${BTBOX_INPUT_PORT}+N (per-device offset)"
 else
     echo ">> btbox: Input:  HID event relay disabled (BTBOX_INPUT_RELAY=${BTBOX_INPUT_RELAY})"
 fi
