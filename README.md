@@ -1,8 +1,8 @@
 # btbox (Bluetooth Box for FreeBSD)
 
-**btbox** is a specialized virtualization wrapper designed to bring modern, high-fidelity Bluetooth Audio and device management to FreeBSD. By leveraging a lightweight Alpine Linux guest running under the Bhyve hypervisor, `btbox` bridges the gap between FreeBSD's stability and Linux's advanced Bluetooth hardware support and codec ecosystem.
+**btbox** is a specialized virtualization wrapper designed to bring modern, high-fidelity Bluetooth audio, microphone, and peripheral device support to FreeBSD. By leveraging a lightweight Alpine Linux guest running under the Bhyve hypervisor, `btbox` bridges the gap between FreeBSD's stability and Linux's advanced Bluetooth hardware support, codec ecosystem, and HID driver stack.
 
-Inspired by **[wifibox](https://github.com/pgj/freebsd-wifibox)**, `btbox` applies the same "Linux-in-a-VM-for-drivers" architecture to the Bluetooth audio and device management problem space.
+Inspired by **[wifibox](https://github.com/pgj/freebsd-wifibox)**, `btbox` applies the same "Linux-in-a-VM-for-drivers" architecture to the Bluetooth device management problem space — covering audio output, microphone input, and hardware peripherals such as game controllers, keyboards, and mice.
 
 **Creator:** orpheus497
 **Status:** Version 0.1.0-alpha (INTERNAL DEVELOPMENT / UNRELEASED)
@@ -11,15 +11,16 @@ Inspired by **[wifibox](https://github.com/pgj/freebsd-wifibox)**, `btbox` appli
 
 ## 1. THE PURPOSE
 
-FreeBSD's native Bluetooth stack (`ng_btx`) is robust but lacks support for modern high-definition audio codecs (LDAC, AptX HD, AAC) and modern Hands-Free Profile (HFP) implementations required by today's consumer headsets. 
+FreeBSD's native Bluetooth stack (`ng_btx`) is robust but lacks support for modern high-definition audio codecs (LDAC, AptX HD, AAC) and modern Hands-Free Profile (HFP) implementations required by today's consumer headsets. Additionally, Bluetooth HID device support (keyboards, mice, game controllers) is limited compared to Linux's BlueZ stack.
 
 `btbox` solves this by:
 1.  **Hardware Passthrough**: Passing a dedicated USB Bluetooth controller (or PCI card) directly to a minimal Alpine Linux VM via Bhyve PCI passthrough.
 2.  **Modern Stack**: Utilizing **BlueZ** (the Linux Bluetooth stack) and **PipeWire** (the modern Linux audio server) within the guest to handle complex protocol negotiations.
 3.  **Audio + Microphone Bridging**: Streaming high-quality audio (A2DP, LDAC, AptX, AAC, SBC-XQ) and microphone input (HFP/HSP with mSBC) back to the FreeBSD host over TCP using the PulseAudio protocol.
-4.  **Bluetooth Device Management**: Providing CLI commands to scan, pair, connect, trust, and remove Bluetooth devices — all from the FreeBSD host.
+4.  **HID Peripheral Support**: Relaying input events from Bluetooth keyboards, mice, and game controllers from the guest to the FreeBSD host via an evdev-to-TCP relay.
+5.  **Bluetooth Device Management**: Providing CLI commands to scan, pair, connect, trust, inspect, and remove Bluetooth devices — all from the FreeBSD host.
 
-The result is a seamless experience where FreeBSD gets full Bluetooth audio output, microphone input, and device management powered by Linux's mature Bluetooth stack.
+The result is a seamless experience where FreeBSD gets full Bluetooth audio output, microphone input, and HID peripheral support powered by Linux's mature Bluetooth stack.
 
 ---
 
@@ -44,8 +45,19 @@ The result is a seamless experience where FreeBSD gets full Bluetooth audio outp
 *   **Guest OS**: Alpine Linux (Standard Virt Kernel).
 *   **Bluetooth**: BlueZ + PipeWire + WirePlumber in the guest.
 *   **Audio Transport**: PulseAudio protocol over TCP (port 4713) via virtual `tap` network.
+*   **HID Transport**: Raw evdev event relay over TCP (base port 7580) via virtual `tap` network *(experimental, guest-side only — host receiver not yet included)*.
 *   **Hardware Control**: `ppt` (PCI passthrough) for USB Bluetooth controllers.
 *   **Device Management**: SSH from host to guest, exposing `bluetoothctl` commands.
+
+### Supported Device Types
+
+| Device Type | Bluetooth Profile | Transport |
+|---|---|---|
+| Headphones / Speakers | A2DP (LDAC, AptX, AAC, SBC-XQ) | PulseAudio TCP :4713 |
+| Microphone / Headset | HFP / HSP (mSBC) | PulseAudio TCP :4713 |
+| Keyboard | HID / HOGP | evdev relay TCP :7580 |
+| Mouse / Trackpad | HID / HOGP | evdev relay TCP :7580 |
+| Game Controller | HID / HOGP | evdev relay TCP :7580 |
 
 ---
 
@@ -94,6 +106,9 @@ btbox pair AA:BB:CC:DD:EE:FF
 btbox trust AA:BB:CC:DD:EE:FF
 btbox connect AA:BB:CC:DD:EE:FF
 
+# Show detailed device information (type, profiles, signal strength)
+btbox info AA:BB:CC:DD:EE:FF
+
 # List connected devices
 btbox devices
 
@@ -109,10 +124,28 @@ btbox stop
 ```
 
 ### Connecting Audio on the Host
-Once a Bluetooth device is connected, configure PulseAudio on the FreeBSD host to use the btbox audio bridge:
+Once a Bluetooth audio device is connected, configure PulseAudio on the FreeBSD host to use the btbox audio bridge:
+
 ```bash
 # Set the PulseAudio server to the btbox guest
 export PULSE_SERVER=tcp:10.0.0.2:4713
+```
+
+### HID Peripherals (Keyboards, Mice, Game Controllers) — Experimental
+
+> [!NOTE]
+> HID peripheral support is **experimental and guest-side only**. The guest-side relay streams raw evdev events over TCP (base port 7580), but a host-side receiver to reconstruct these as FreeBSD virtual input devices (e.g. via `cuse(3)` or `uhid(4)`) is **not yet included** in this repository. Contributions welcome!
+
+Once a Bluetooth HID device is paired and connected in btbox, the guest recognizes it via BlueZ HID/HOGP profiles:
+
+```bash
+# Connect a Bluetooth keyboard
+btbox pair AA:BB:CC:DD:EE:FF
+btbox trust AA:BB:CC:DD:EE:FF
+btbox connect AA:BB:CC:DD:EE:FF
+
+# View device info to confirm it's recognized as an input device
+btbox info AA:BB:CC:DD:EE:FF
 ```
 
 ---

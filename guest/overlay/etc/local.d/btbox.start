@@ -1,11 +1,31 @@
 #!/bin/sh
-##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio + BT management services.
+##Script function and purpose: Guest-side initialization script. Sets up repositories, installs packages, and starts audio + BT + HID management services.
 #
 # btbox startup script
 # Located at /etc/local.d/btbox.start inside the guest
-# Replicates wifibox architecture but for Bluetooth audio, microphone, and device management.
+# Replicates wifibox architecture but for Bluetooth audio, microphone,
+# device management, and HID peripherals (keyboards, mice, game controllers).
 
 echo ">> btbox: Initializing..."
+
+##Step purpose: Configure network interface for host communication.
+# Network must be up first so apk can fetch packages and SSH is reachable.
+echo ">> btbox: Configuring network..."
+# Read network config injected by the host via seed image.
+# Falls back to defaults if the config file is not present.
+BTBOX_GUEST_IP="10.0.0.2"
+BTBOX_GUEST_NETMASK="24"
+if [ -f /etc/btbox/network.conf ]; then
+    . /etc/btbox/network.conf
+fi
+# Apply defaults after sourcing config so file values take precedence
+BTBOX_INPUT_RELAY="${BTBOX_INPUT_RELAY:-no}"
+BTBOX_INPUT_PORT="${BTBOX_INPUT_PORT:-7580}"
+# The TAP interface appears as eth0 in the guest
+ip addr add "${BTBOX_GUEST_IP}/${BTBOX_GUEST_NETMASK}" dev eth0 2>/dev/null || true
+ip link set eth0 up
+# Add default route to host for potential upstream access
+ip route add default via "$(echo "$BTBOX_GUEST_IP" | sed 's/\.[0-9]*$/.1/')" 2>/dev/null || true
 
 ##Step purpose: Configure Alpine repositories.
 cat > /etc/apk/repositories <<EOF
@@ -18,11 +38,12 @@ EOF
 echo ">> btbox: Installing packages..."
 apk update
 apk add \
-    bluez bluez-deprecated bluez-btmgmt \
+    bluez bluez-deprecated bluez-btmgmt bluez-plugins \
     pipewire pipewire-pulse pipewire-spa-bluez \
     wireplumber \
     openssh-server \
-    dbus
+    dbus \
+    eudev libinput socat evtest
 
 ##Step purpose: Configure SSH for host-to-guest command execution.
 echo ">> btbox: Configuring SSH access..."
@@ -52,15 +73,39 @@ echo ">> btbox: Starting Services..."
 rc-service dbus start
 rc-service bluetooth start
 
+##Step purpose: Start udev for input device detection (HID peripherals).
+echo ">> btbox: Starting udev for input device support..."
+rc-service udev start || udevd --daemon 2>/dev/null || true
+# Trigger udev to detect any already-attached devices
+udevadm trigger 2>/dev/null || true
+
 ##Step purpose: Power on the Bluetooth adapter.
 echo ">> btbox: Powering on Bluetooth adapter..."
 sleep 2
-bluetoothctl power on
-bluetoothctl discoverable on
-bluetoothctl pairable on
-# Register a default agent for automatic pairing
-bluetoothctl agent on
-bluetoothctl default-agent
+# Verify an adapter is present before attempting to configure it
+_adapter_found=false
+_bt_retry=0
+while [ "$_bt_retry" -lt 5 ]; do
+    if bluetoothctl list 2>/dev/null | grep -q "Controller"; then
+        _adapter_found=true
+        break
+    fi
+    _bt_retry=$((_bt_retry + 1))
+    sleep 1
+done
+
+if [ "$_adapter_found" = "true" ]; then
+    bluetoothctl power on || echo ">> btbox: WARNING: Failed to power on Bluetooth adapter"
+    bluetoothctl discoverable on 2>/dev/null || true
+    bluetoothctl pairable on 2>/dev/null || true
+    # Register a default agent for automatic pairing
+    bluetoothctl agent on 2>/dev/null || true
+    bluetoothctl default-agent 2>/dev/null || true
+    echo ">> btbox: Bluetooth adapter configured."
+else
+    echo ">> btbox: WARNING: No Bluetooth adapter found."
+    echo ">> btbox: Check that PCI passthrough (ppt) is configured correctly."
+fi
 
 ##Step purpose: Configure and Start Audio Bridge.
 # PipeWire runs as root in this appliance VM
@@ -68,30 +113,58 @@ mkdir -p /run/pipewire
 export PIPEWIRE_RUNTIME_DIR=/run/pipewire
 export XDG_RUNTIME_DIR=/run/pipewire
 
-# Start PipeWire stack in background
+# Start PipeWire stack in background with logging for debugging
 # Order: pipewire -> wireplumber -> pipewire-pulse
 echo ">> btbox: Starting PipeWire audio bridge..."
-pipewire &
-sleep 1
-wireplumber &
-sleep 1
-pipewire-pulse &
-
-##Step purpose: Configure network interface for host communication.
-echo ">> btbox: Configuring network..."
-# Read network config injected by the host via seed image.
-# Falls back to defaults if the config file is not present.
-BTBOX_GUEST_IP="10.0.0.2"
-BTBOX_GUEST_NETMASK="24"
-if [ -f /etc/btbox/network.conf ]; then
-    . /etc/btbox/network.conf
+pipewire > /var/log/pipewire.log 2>&1 &
+_pw_pid=$!
+sleep 2
+if kill -0 "$_pw_pid" 2>/dev/null; then
+    echo ">> btbox: PipeWire started (PID $_pw_pid)."
+else
+    echo ">> btbox: WARNING: PipeWire failed to start. Check /var/log/pipewire.log"
 fi
-# The TAP interface appears as eth0 in the guest
-ip addr add "${BTBOX_GUEST_IP}/${BTBOX_GUEST_NETMASK}" dev eth0
-ip link set eth0 up
+
+wireplumber > /var/log/wireplumber.log 2>&1 &
+_wp_pid=$!
+sleep 2
+if kill -0 "$_wp_pid" 2>/dev/null; then
+    echo ">> btbox: WirePlumber started (PID $_wp_pid)."
+else
+    echo ">> btbox: WARNING: WirePlumber failed to start. Check /var/log/wireplumber.log"
+fi
+
+pipewire-pulse > /var/log/pipewire-pulse.log 2>&1 &
+_pp_pid=$!
+sleep 1
+if kill -0 "$_pp_pid" 2>/dev/null; then
+    echo ">> btbox: PipeWire-Pulse started (PID $_pp_pid)."
+else
+    echo ">> btbox: WARNING: PipeWire-Pulse failed to start. Check /var/log/pipewire-pulse.log"
+fi
+
+##Step purpose: Conditionally start HID input event relay.
+# Monitors /dev/input/ for Bluetooth HID devices (keyboards, mice, controllers)
+# and relays raw evdev events to the FreeBSD host over TCP.
+# Only starts when BTBOX_INPUT_RELAY is explicitly set to "yes" or "true".
+_relay_enabled="no"
+case "$(echo "$BTBOX_INPUT_RELAY" | tr '[:upper:]' '[:lower:]')" in
+    yes|true) _relay_enabled="yes" ;;
+esac
+if [ "$_relay_enabled" = "yes" ]; then
+    echo ">> btbox: Starting input event relay..."
+    mkdir -p /run/btbox
+    BTBOX_INPUT_PORT="$BTBOX_INPUT_PORT" BTBOX_RELAY_BIND="$BTBOX_GUEST_IP" \
+        sh /etc/btbox/input-relay.sh &
+fi
 
 ##Step purpose: Signal readiness.
 echo ">> btbox: Ready."
-echo ">> btbox: Bluetooth audio bridge active."
-echo ">> btbox: Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
+echo ">> btbox: Bluetooth device bridge active."
+echo ">> btbox: Audio:  Host can connect to PulseAudio at tcp:${BTBOX_GUEST_IP}:4713"
+if [ "$_relay_enabled" = "yes" ]; then
+    echo ">> btbox: Input:  HID event relay on tcp:${BTBOX_GUEST_IP}:${BTBOX_INPUT_PORT}+N (per-device offset)"
+else
+    echo ">> btbox: Input:  HID event relay disabled (BTBOX_INPUT_RELAY=${BTBOX_INPUT_RELAY})"
+fi
 echo ">> btbox: Use 'btbox scan/pair/connect' on the host to manage devices."

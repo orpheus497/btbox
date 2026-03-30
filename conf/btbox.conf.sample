@@ -24,3 +24,20 @@ GUEST_IP="10.0.0.2"
 # Default: derived from project root when running from source.
 # When installed: /usr/local/share/btbox
 #BTBOX_DATA_DIR="/usr/local/share/btbox"
+
+# HID input forwarding (experimental / not yet wired end-to-end).
+# NOTE: These options are currently not propagated from the host into
+#       the guest automatically. They are reserved for future HID relay
+#       support. The guest-side relay runs independently using its own
+#       defaults (see guest/overlay/etc/btbox/input-relay.sh).
+#
+# Enable relay of Bluetooth HID events (keyboards, mice, game controllers)
+# from the guest to the host. Requires a host-side receiver (not yet included).
+# Experimental and default-disabled until the host-side receiver and
+# end-to-end config wiring are implemented.
+# "yes" = enabled, "no" = disabled (default: no)
+BTBOX_INPUT_RELAY="no"
+
+# TCP base port for HID input event relay between guest and host.
+# Each connected HID device uses base_port + event_number.
+BTBOX_INPUT_PORT="7580"
